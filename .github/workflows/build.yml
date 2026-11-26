@@ -1,0 +1,52 @@
+name: Derle
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Testler
+        run: dotnet test tests/GorevYoneticisi.Core.Tests -c Release
+
+      - name: Derleme (uyarılar hata sayılır)
+        run: dotnet build GorevYoneticisi.sln -c Release -warnaserror
+
+      - name: Tek dosyalık exe oluştur
+        run: >
+          dotnet publish src/GorevYoneticisi.App -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true -o publish
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GorevYoneticisi
+          path: publish/GorevYoneticisi.exe
+
+      - name: '"Son sürüm" sayfasını güncelle'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest publish/GorevYoneticisi.exe \
+            --title "Son sürüm" --prerelease --target "${{ github.sha }}" \
+            --notes "main dalının en son hali (${GITHUB_SHA::7}). GorevYoneticisi.exe dosyasını indirip çalıştırın; yönetici izni ister."
