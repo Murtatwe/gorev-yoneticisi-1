@@ -159,7 +159,8 @@ public sealed class StartupViewModel : ObservableObject
             int oldScore = row.RiskScore;
             var path = row.Entry.TargetPath;
             var sig = _monitor.GetSignature(path, highPriority: false);
-            row.Signature = path is null || !System.IO.Path.IsPathFullyQualified(path) ? "" : sig.Display;
+            row.Signature = path is null || !System.IO.Path.IsPathFullyQualified(path) ? ""
+                : _monitor.GetFileState(path) == FileState.Missing ? "Dosya bulunamadı" : sig.Display;
             // Windows' own tasks whose file cannot be resolved (COM handlers etc.) count as Microsoft items too.
             row.IsMicrosoft = (sig.Status == SignatureStatus.Signed && (sig.Signer?.Contains("Microsoft", StringComparison.OrdinalIgnoreCase) ?? false))
                 || (path is null && row.Entry.ExtraScore == 0 && row.Entry.Location.StartsWith(@"\Microsoft\", StringComparison.OrdinalIgnoreCase));

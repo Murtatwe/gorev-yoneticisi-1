@@ -265,6 +265,8 @@ public sealed class MonitorService : IDisposable
 
     public SignatureInfo GetSignature(string? path, bool highPriority = true) => _signatures.Get(path, highPriority);
 
+    public FileState GetFileState(string? path) => _files.Get(path);
+
     /// <summary>Risk of a startup entry (nothing is running, so a missing file means a leftover entry, not a deleted program).</summary>
     public RiskAssessment AssessStartupFile(string name, string? path, int extraScore, IEnumerable<string> extraReasons)
     {
