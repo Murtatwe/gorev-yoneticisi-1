@@ -17,14 +17,17 @@ public sealed class StartupRow : ObservableObject
     private int _score;
     private IReadOnlyList<string> _reasons = Array.Empty<string>();
 
+    private System.Windows.Media.ImageSource? _icon;
+
     public StartupRow(StartupEntry e)
     {
         Entry = e;
-        Icon = Ui.IconCache.Get(e.TargetPath);
+        string? path = e.TargetPath is { } t && System.IO.Path.IsPathFullyQualified(t) ? t : null;
+        _icon = Ui.IconCache.GetOrQueue(path, img => Icon = img);
     }
 
     public StartupEntry Entry { get; }
-    public System.Windows.Media.ImageSource? Icon { get; }
+    public System.Windows.Media.ImageSource? Icon { get => _icon; private set => SetProperty(ref _icon, value); }
     public string Name => Entry.Name;
     public string Category => Entry.Category;
     public string Location => Entry.Location;
@@ -43,7 +46,7 @@ public sealed class StartupViewModel : ObservableObject
 {
     private readonly MonitorService _monitor;
     private readonly AppSettings _settings;
-    private bool _loaded, _isLoading;
+    private bool _loaded, _isLoading, _stale;
     private string _search = "", _summary = "";
     private StartupRow? _selected;
 
@@ -104,12 +107,22 @@ public sealed class StartupViewModel : ObservableObject
         }
     }
 
-    public void EnsureLoaded()
+    /// <summary>Called when the page becomes visible.</summary>
+    public void Activate()
     {
-        if (_loaded) return;
-        _loaded = true;
-        _ = LoadAsync();
+        if (!_loaded)
+        {
+            _loaded = true;
+            _ = LoadAsync();
+        }
+        else if (_stale)
+        {
+            RefreshSignatures();
+        }
     }
+
+    /// <summary>New signature results arrived while the page was hidden; refresh on next visit.</summary>
+    public void MarkStale() => _stale = true;
 
     private async Task LoadAsync()
     {
@@ -118,9 +131,12 @@ public sealed class StartupViewModel : ObservableObject
         try
         {
             var entries = await Task.Run(() => new StartupItems().Read());
-            Rows.Clear();
-            foreach (var e in entries) Rows.Add(new StartupRow(e));
-            RefreshSignatures();
+            using (View.DeferRefresh())
+            {
+                Rows.Clear();
+                foreach (var e in entries) Rows.Add(new StartupRow(e));
+            }
+            RefreshSignatures(force: true);
         }
         catch (Exception ex)
         {
@@ -134,22 +150,30 @@ public sealed class StartupViewModel : ObservableObject
     }
 
     /// <summary>Re-evaluates signatures and risk (called when background signature checks finish).</summary>
-    public void RefreshSignatures()
+    public void RefreshSignatures(bool force = false)
     {
+        _stale = false;
         if (Rows.Count == 0) return;
+        bool changed = force;
         foreach (var row in Rows)
         {
+            bool wasMicrosoft = row.IsMicrosoft;
+            int oldScore = row.RiskScore;
             var path = row.Entry.TargetPath;
             var sig = _monitor.GetSignature(path, highPriority: false);
             row.Signature = path is null || !System.IO.Path.IsPathFullyQualified(path) ? "" : sig.Display;
-            row.IsMicrosoft = sig.Status == SignatureStatus.Signed && (sig.Signer?.Contains("Microsoft", StringComparison.OrdinalIgnoreCase) ?? false);
+            // Windows' own tasks whose file cannot be resolved (COM handlers etc.) count as Microsoft items too.
+            row.IsMicrosoft = (sig.Status == SignatureStatus.Signed && (sig.Signer?.Contains("Microsoft", StringComparison.OrdinalIgnoreCase) ?? false))
+                || (path is null && row.Entry.ExtraScore == 0 && row.Entry.Location.StartsWith(@"\Microsoft\", StringComparison.OrdinalIgnoreCase));
             string name = path is null ? row.Name : System.IO.Path.GetFileName(path);
             var risk = _monitor.AssessStartupFile(name, path, row.Entry.ExtraScore, row.Entry.ExtraReasons);
             row.Risk = risk.Level;
             row.RiskScore = risk.Score;
             if (!row.Reasons.SequenceEqual(risk.Reasons)) row.Reasons = risk.Reasons;
+            changed |= wasMicrosoft != row.IsMicrosoft || oldScore != row.RiskScore;
         }
-        View.Refresh();
+        // A full refresh regenerates the grid (scroll jumps), so only do it when sorting/filtering is affected.
+        if (changed) View.Refresh();
         int risky = Rows.Count(r => r.Risk >= RiskLevel.Medium);
         int visible = View.Count;
         Summary = $"{Rows.Count} öğe ({visible} gösteriliyor)" + (risky > 0 ? $" · {risky} tanesi dikkat istiyor" : "");

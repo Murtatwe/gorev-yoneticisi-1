@@ -7,15 +7,10 @@ public static class TcpStates
     {
         1 => "Kapalı",
         2 => "Dinliyor",
-        3 => "Bağlanıyor (SYN gönderildi)",
-        4 => "Bağlanıyor (SYN alındı)",
+        3 or 4 => "Bağlanıyor",
         5 => "Bağlı",
-        6 => "Kapanıyor (FIN_WAIT1)",
-        7 => "Kapanıyor (FIN_WAIT2)",
-        8 => "Kapanma bekleniyor",
-        9 => "Kapanıyor",
-        10 => "Son onay bekleniyor",
-        11 => "Bekleme (TIME_WAIT)",
+        6 or 7 or 8 or 9 or 10 => "Kapanıyor",
+        11 => "Kapandı (bekleme)",
         12 => "Siliniyor",
         _ => "Bilinmiyor",
     };

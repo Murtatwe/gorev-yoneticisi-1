@@ -43,7 +43,7 @@
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <StackPanel Orientation="Horizontal">
+                        <StackPanel Orientation="Horizontal" ToolTip="{Binding Shortcut}">
                             <ui:SymbolIcon Symbol="{Binding Icon}" FontSize="18" Margin="0,0,12,0" />
                             <TextBlock Text="{Binding Title}" FontSize="14" VerticalAlignment="Center"
                                        Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
@@ -52,22 +52,32 @@
                 </ListBox.ItemTemplate>
             </ListBox>
 
-            <!-- Security status at the bottom of the sidebar -->
-            <Border DockPanel.Dock="Bottom" Style="{StaticResource Panel}" Padding="12" Margin="0,8,0,0">
+            <!-- Security status at the bottom of the sidebar (click to open the Security page) -->
+            <Border DockPanel.Dock="Bottom" Style="{StaticResource Panel}" Padding="12" Margin="0,8,0,0" Cursor="Hand"
+                    MouseLeftButtonUp="SecurityCard_Click" ToolTip="Güvenlik sayfasını aç">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal">
                         <Ellipse Style="{StaticResource RiskDot}" Fill="{Binding SecurityLevel, Converter={StaticResource RiskBrush}}" Margin="0,0,8,0" />
                         <TextBlock Text="Güvenlik" Style="{StaticResource CardTitle}" />
                     </StackPanel>
                     <TextBlock Text="{Binding SecurityStatus}" Style="{StaticResource Body}" FontSize="12" Margin="0,6,0,0" />
-                    <TextBlock Text="Yönetici izni yok: bazı işlemler görünmeyebilir." Visibility="{Binding IsElevated, Converter={StaticResource InverseBoolToVisibility}}"
-                               Foreground="{x:Static u:RiskColors.Medium}" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0" />
                 </StackPanel>
             </Border>
         </DockPanel>
 
-        <!-- Page -->
-        <ContentControl Grid.Row="1" Grid.Column="1" Content="{Binding CurrentPage}" Margin="8,4,20,8" Focusable="False" />
+        <!-- Page, with app-wide notices above it -->
+        <DockPanel Grid.Row="1" Grid.Column="1" Margin="8,4,20,8">
+            <ui:InfoBar DockPanel.Dock="Top" Margin="0,0,0,10" IsClosable="False" Severity="Warning"
+                        IsOpen="{Binding IsElevated, Converter={x:Static u:InverseBool.Instance}}"
+                        Title="Yönetici izni yok"
+                        Message="Uygulama yönetici izniyle açılmadı, bu yüzden bazı programlar ve bilgiler görünmeyebilir." />
+            <ui:Button DockPanel.Dock="Top" HorizontalAlignment="Left" Margin="0,-4,0,10" Content="Yönetici olarak yeniden başlat"
+                       Icon="{ui:SymbolIcon Shield24}" Command="{Binding RestartAsAdminCommand}"
+                       Visibility="{Binding IsElevated, Converter={StaticResource InverseBoolToVisibility}}" />
+            <ui:InfoBar DockPanel.Dock="Top" Margin="0,0,0,10" IsClosable="False" Severity="Error" Title="Sorun"
+                        Message="{Binding Error}" IsOpen="{Binding Error, Converter={x:Static u:NotNull.Instance}}" />
+            <ContentControl Content="{Binding CurrentPage}" Focusable="False" />
+        </DockPanel>
 
         <!-- Status bar -->
         <Border Grid.Row="2" Grid.ColumnSpan="2" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" Padding="20,6">

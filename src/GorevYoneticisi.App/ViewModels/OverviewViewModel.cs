@@ -93,7 +93,7 @@ public sealed class OverviewViewModel : ObservableObject
         MemoryHistory = _mem.ToArray();
         MemoryText = $"{Format.Bytes((long)used)} / {Format.Bytes((long)t.MemoryTotal)}";
         MemoryDetail = $"{Format.Percent(memPct)} kullanımda · Kullanılabilir {Format.Bytes((long)t.MemoryAvailable)} · " +
-                       $"Taahhüt {Format.Bytes((long)t.CommitUsed)} / {Format.Bytes((long)t.CommitLimit)} · Önbellek {Format.Bytes((long)t.CachedBytes)}";
+                       $"Önbellek {Format.Bytes((long)t.CachedBytes)} · Ayrılan (sanal) bellek {Format.Bytes((long)t.CommitUsed)} / {Format.Bytes((long)t.CommitLimit)}";
 
         _gpu.Add(t.GpuPercent);
         GpuHistory = _gpu.ToArray();
@@ -119,7 +119,7 @@ public sealed class OverviewViewModel : ObservableObject
         NetUp = Format.Rate(t.NetUpBps);
 
         Uptime = Format.Duration(t.Uptime);
-        Counts = $"{t.ProcessCount} işlem · {t.ThreadCount} iş parçacığı · {t.HandleCount} tutamaç";
+        Counts = $"{N(t.ProcessCount)} program çalışıyor";
 
         var procs = s.Processes.Where(p => p.Pid > 4).ToList();
         TopCpu = procs.OrderByDescending(p => p.CpuPercent).Take(5)
@@ -130,6 +130,9 @@ public sealed class OverviewViewModel : ObservableObject
         TopGpu = procs.Where(p => p.GpuPercent > 0).OrderByDescending(p => p.GpuPercent).Take(5)
             .Select(p => new TopProcess { Name = p.Name, Value = Format.Percent(p.GpuPercent), Percent = p.GpuPercent, Icon = Ui.IconCache.Get(p.Path) }).ToList();
     }
+
+    /// <summary>Thousands separator in Turkish style (12.345).</summary>
+    private static string N(int value) => value.ToString("N0", System.Globalization.CultureInfo.InvariantCulture).Replace(',', '.');
 
     private static string EngineName(string type) => type switch
     {

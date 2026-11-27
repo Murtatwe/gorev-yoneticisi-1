@@ -45,7 +45,21 @@
                         <TextBlock Text="Tema" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                         <TextBlock Text="Koyu, açık ya da Windows ayarına uyan tema." Style="{StaticResource Caption}" />
                     </StackPanel>
-                    <ComboBox Grid.Column="1" ItemsSource="{Binding Themes}" SelectedItem="{Binding Theme}" VerticalAlignment="Center" />
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding Themes}" SelectedItem="{Binding Theme}" DisplayMemberPath="Label" VerticalAlignment="Center" />
+                </Grid>
+            </Border>
+
+            <Border Style="{StaticResource Panel}" Margin="0,0,0,10">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="Her zaman üstte" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <TextBlock Text="Pencere diğer programların üstünde kalır (ör. oyun oynarken kullanımı izlemek için)." Style="{StaticResource Caption}" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ui:ToggleSwitch Grid.Column="1" IsChecked="{Binding AlwaysOnTop}" VerticalAlignment="Center" />
                 </Grid>
             </Border>
 

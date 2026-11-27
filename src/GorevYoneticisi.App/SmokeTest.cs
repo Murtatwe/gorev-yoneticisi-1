@@ -42,6 +42,19 @@ internal static class SmokeTest
                 {
                     errors.Add($"Ekran görüntüsü ({page.Title}): {ex.Message}");
                 }
+
+                if (page.Page == vm.Processes)
+                {
+                    // Exercise the details panel and the ungrouped list too.
+                    vm.Processes.Selected = vm.Processes.Rows.OrderByDescending(r => r.Memory).FirstOrDefault();
+                    await Delay(2000);
+                    Save(window, Path.Combine(outDir, "2b-islem-ayrintisi.png"));
+                    vm.Processes.GroupByApp = !vm.Processes.GroupByApp;
+                    await Delay(2000);
+                    Save(window, Path.Combine(outDir, "2c-gruplama-degisti.png"));
+                    vm.Processes.GroupByApp = !vm.Processes.GroupByApp;
+                    vm.Processes.Selected = null;
+                }
             }
 
             var scan = await monitor.RunSecurityScanAsync();

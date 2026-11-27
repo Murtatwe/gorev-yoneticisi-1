@@ -12,13 +12,13 @@
         <StackPanel>
             <TextBlock Text="Ağ" Style="{StaticResource PageTitle}" />
             <TextBlock Style="{StaticResource PageSubtitle}"
-                       Text="Hangi programın internete ya da yerel ağa bağlı olduğu. 'Uzak adres', programın konuştuğu bilgisayardır. Tanımadığınız bir programın sürekli dışarıya bağlanması şüphe nedenidir. Liste 2 saniyede bir yenilenir." />
+                       Text="Hangi programın internete ya da yerel ağa bağlı olduğu. 'Uzak adres', programın bağlandığı bilgisayardır. Tanımadığınız bir programın sürekli dışarıya bağlanması şüphe nedenidir." />
         </StackPanel>
 
         <DockPanel Grid.Row="1" Margin="0,0,0,10" LastChildFill="False">
             <ui:TextBox DockPanel.Dock="Left" Width="320" PlaceholderText="Program, adres ya da PID ile ara…"
                         Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" Icon="{ui:SymbolIcon Search24}" />
-            <CheckBox DockPanel.Dock="Left" Content="Dinleyen/UDP uç noktalarını göster" IsChecked="{Binding ShowListening}" Margin="16,0,0,0" VerticalAlignment="Center" />
+            <CheckBox DockPanel.Dock="Left" Content="Bağlantı bekleyen programları da göster" IsChecked="{Binding ShowListening}" Margin="16,0,0,0" VerticalAlignment="Center" />
             <TextBlock DockPanel.Dock="Right" Text="{Binding Summary}" Style="{StaticResource Caption}" VerticalAlignment="Center" />
         </DockPanel>
 

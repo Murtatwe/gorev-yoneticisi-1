@@ -21,12 +21,13 @@ public static class RiskColors
         _ => None,
     };
 
+    // "Temiz" would promise more than a heuristic can know; "no problem seen" is honest.
     public static string Text(RiskLevel level) => level switch
     {
         RiskLevel.High => "Yüksek risk",
-        RiskLevel.Medium => "Orta risk",
+        RiskLevel.Medium => "Dikkat",
         RiskLevel.Low => "Düşük risk",
-        _ => "Temiz",
+        _ => "Sorun görülmedi",
     };
 
     private static SolidColorBrush Freeze(Color c)
@@ -39,8 +40,11 @@ public static class RiskColors
 
 public sealed class RiskBrushConverter : IValueConverter
 {
+    /// <summary>When true, "no risk" is transparent so only flagged rows carry colour.</summary>
+    public bool HideNone { get; set; }
+
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
-        value is RiskLevel l ? RiskColors.For(l) : Brushes.Transparent;
+        value is RiskLevel l ? (HideNone && l == RiskLevel.None ? Brushes.Transparent : RiskColors.For(l)) : Brushes.Transparent;
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => Binding.DoNothing;
 }
@@ -99,5 +103,64 @@ public sealed class ZeroToVisibleConverter : IValueConverter
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
         value is int i && i == 0 ? Visibility.Visible : Visibility.Collapsed;
 
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => Binding.DoNothing;
+}
+
+/// <summary>True when the risk level is at least Medium (for warning icons; colour alone is not enough).</summary>
+public sealed class RiskAtLeastMediumToVisibility : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is RiskLevel l && l >= RiskLevel.Medium ? Visibility.Visible : Visibility.Collapsed;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => Binding.DoNothing;
+}
+
+/// <summary>
+/// Cell heat colour like Task Manager: the accent colour with opacity proportional to the value.
+/// ConverterParameter = value treated as 100% (default 100).
+/// </summary>
+public sealed class HeatBrushConverter : IValueConverter
+{
+    private static readonly SolidColorBrush[] Steps = Enumerable.Range(0, 11).Select(i =>
+    {
+        var b = new SolidColorBrush(Color.FromArgb((byte)(i * 0.045 * 255), 0x4C, 0x9A, 0xFF));
+        b.Freeze();
+        return b;
+    }).ToArray();
+
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        double full = parameter is string s && double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out double f) ? f : 100;
+        double v = value switch { double d => d, long l => l, int i => i, _ => 0 };
+        if (v <= 0 || full <= 0) return Brushes.Transparent;
+        int step = (int)Math.Ceiling(Math.Min(1, v / full) * 10);
+        return Steps[Math.Clamp(step, 0, 10)];
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => Binding.DoNothing;
+}
+
+/// <summary>Gives elements outside the visual tree (DataGrid column headers, context menus) access to a DataContext.</summary>
+public sealed class BindingProxy : Freezable
+{
+    public static readonly DependencyProperty DataProperty =
+        DependencyProperty.Register(nameof(Data), typeof(object), typeof(BindingProxy));
+
+    public object? Data { get => GetValue(DataProperty); set => SetValue(DataProperty, value); }
+
+    protected override Freezable CreateInstanceCore() => new BindingProxy();
+}
+
+public sealed class InverseBool : IValueConverter
+{
+    public static readonly InverseBool Instance = new();
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value is not true;
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => value is not true;
+}
+
+public sealed class NotNull : IValueConverter
+{
+    public static readonly NotNull Instance = new();
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value is not null && value is not string { Length: 0 };
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => Binding.DoNothing;
 }

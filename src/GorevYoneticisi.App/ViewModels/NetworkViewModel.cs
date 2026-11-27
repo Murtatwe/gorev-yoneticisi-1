@@ -7,11 +7,15 @@ using GorevYoneticisi.App.Services;
 
 namespace GorevYoneticisi.App.ViewModels;
 
-public sealed class ConnectionRow
+public sealed class ConnectionRow : ObservableObject
 {
-    public required ConnectionInfo Info { get; init; }
+    private ConnectionInfo _info = null!;
+    private System.Windows.Media.ImageSource? _icon;
+
+    public required ConnectionInfo Info { get => _info; set { _info = value; OnPropertyChanged(nameof(State)); } }
     public required string ProcessName { get; init; }
-    public System.Windows.Media.ImageSource? Icon { get; init; }
+    public System.Windows.Media.ImageSource? Icon { get => _icon; set => SetProperty(ref _icon, value); }
+    public string Key => $"{Info.Protocol}|{Info.Local}|{Info.Remote}|{Info.Pid}";
     public string Protocol => Info.Protocol;
     public string Local => Info.Local;
     public string Remote => Info.Remote;
@@ -63,7 +67,7 @@ public sealed class NetworkViewModel : ObservableObject
 
     public void UpdateProcessNames(MonitorSnapshot s)
     {
-        if (!_isActive) return;
+        // Always kept up to date so the first visit to the page already shows names.
         _names = s.Processes.GroupBy(p => p.Pid).ToDictionary(g => g.Key, g => (g.First().Name, g.First().Path));
     }
 
@@ -86,15 +90,28 @@ public sealed class NetworkViewModel : ObservableObject
         {
             var list = await Task.Run(MonitorService.ReadConnections);
             var names = _names;
-            Rows.Clear();
+            // Update in place (add/remove only what changed) so selection and scroll position survive refreshes.
+            var existing = Rows.ToDictionary(r => r.Key);
+            var seen = new HashSet<string>();
             foreach (var c in list)
             {
-                var (name, path) = names.TryGetValue(c.Pid, out var n) ? n : (c.Pid == 0 ? "Sistem (boşta)" : c.Pid == 4 ? "System" : $"PID {c.Pid}", null);
-                Rows.Add(new ConnectionRow { Info = c, ProcessName = name, Icon = Ui.IconCache.Get(path) });
+                string key = $"{c.Protocol}|{c.Local}|{c.Remote}|{c.Pid}";
+                if (!seen.Add(key)) continue;
+                if (existing.TryGetValue(key, out var row))
+                {
+                    if (row.Info.StateCode != c.StateCode) row.Info = c;
+                    continue;
+                }
+                var (name, path) = names.TryGetValue(c.Pid, out var n) ? n : (c.Pid == 0 ? "Sistem" : c.Pid == 4 ? "System" : $"PID {c.Pid}", null);
+                var newRow = new ConnectionRow { Info = c, ProcessName = name };
+                newRow.Icon = Ui.IconCache.GetOrQueue(path, img => newRow.Icon = img);
+                Rows.Add(newRow);
             }
+            foreach (var row in Rows.Where(r => !seen.Contains(r.Key)).ToList()) Rows.Remove(row);
+
             int established = list.Count(c => c.StateCode == 5);
-            int listening = list.Count(c => c.StateCode == 2);
-            Summary = $"{list.Count} uç nokta · {established} etkin bağlantı · {listening} dinleyen TCP bağlantı noktası";
+            int waiting = list.Count(c => c.StateCode == 2 || c.Protocol.StartsWith("UDP", StringComparison.Ordinal));
+            Summary = $"{list.Count} bağlantı · {established} etkin · {waiting} tanesi bağlantı bekliyor";
         }
         catch (Exception ex)
         {

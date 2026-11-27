@@ -13,6 +13,9 @@
             </ResourceDictionary.MergedDictionaries>
 
             <conv:RiskBrushConverter x:Key="RiskBrush" />
+            <conv:RiskBrushConverter x:Key="RiskBrushHideNone" HideNone="True" />
+            <conv:RiskAtLeastMediumToVisibility x:Key="RiskWarningVisibility" />
+            <conv:HeatBrushConverter x:Key="Heat" />
             <conv:RiskTextConverter x:Key="RiskText" />
             <conv:BoolToVisibilityConverter x:Key="BoolToVisibility" />
             <conv:BoolToVisibilityConverter x:Key="InverseBoolToVisibility" Invert="True" />

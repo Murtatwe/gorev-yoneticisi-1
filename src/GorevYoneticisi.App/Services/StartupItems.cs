@@ -378,11 +378,19 @@ internal sealed class StartupItems
     private string? ComServerFor(string clsid)
     {
         if (string.IsNullOrWhiteSpace(clsid)) return null;
-        foreach (var hive in new[] { Registry.CurrentUser, Registry.LocalMachine })
+        clsid = clsid.Trim();
+        if (!clsid.StartsWith('{')) clsid = "{" + clsid + "}";
+        // HKCU first (a per-user registration overrides the machine one, which is also how COM hijacks work).
+        foreach (var root in new[] { @"HKCU\SOFTWARE\Classes\CLSID", @"HKLM\SOFTWARE\Classes\CLSID", @"HKLM\SOFTWARE\WOW6432Node\Classes\CLSID" })
         {
-            using var k = hive.OpenSubKey($@"SOFTWARE\Classes\CLSID\{clsid}\InprocServer32") ?? hive.OpenSubKey($@"SOFTWARE\Classes\CLSID\{clsid}\LocalServer32");
-            if (k?.GetValue(null) is string server && !string.IsNullOrWhiteSpace(server))
-                return Resolve(server);
+            var hive = root.StartsWith("HKCU") ? Registry.CurrentUser : Registry.LocalMachine;
+            string sub = root[5..];
+            foreach (string server in new[] { "InprocServer32", "LocalServer32" })
+            {
+                using var k = hive.OpenSubKey($@"{sub}\{clsid}\{server}");
+                if (k?.GetValue(null) is string value && !string.IsNullOrWhiteSpace(value))
+                    return server == "InprocServer32" ? FindOnPath(Normalize(value)) : Resolve(value);
+            }
         }
         return null;
     }

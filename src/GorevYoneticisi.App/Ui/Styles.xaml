@@ -29,7 +29,7 @@
 
     <Style x:Key="Caption" TargetType="TextBlock">
         <Setter Property="FontSize" Value="12" />
-        <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
     </Style>
 
@@ -46,6 +46,26 @@
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="8" />
         <Setter Property="Padding" Value="16" />
+    </Style>
+
+    <Style x:Key="Hint" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!-- Theme-aware status text colours (readable in both light and dark theme) -->
+    <Style x:Key="WarningText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!-- Right-aligned numeric cells -->
+    <Style x:Key="NumberCell" TargetType="TextBlock">
+        <Setter Property="TextAlignment" Value="Right" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Padding" Value="0,0,8,0" />
     </Style>
 
     <Style x:Key="RiskDot" TargetType="Ellipse">

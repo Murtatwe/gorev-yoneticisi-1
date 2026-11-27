@@ -13,7 +13,7 @@
         <StackPanel>
             <TextBlock Text="Başlangıç" Style="{StaticResource PageTitle}" />
             <TextBlock Style="{StaticResource PageSubtitle}"
-                       Text="Windows açılırken ya da belirli zamanlarda kendiliğinden çalışan her şey: kayıt defteri, Başlangıç klasörü, zamanlanmış görevler, servisler ve sürücüler. Zararlılar bilgisayar her açıldığında yeniden çalışmak için buralara yerleşir. Riskli öğeler en üstte listelenir." />
+                       Text="Bilgisayar açılırken ya da belirli zamanlarda kendiliğinden çalışan her şey. Zararlılar her açılışta yeniden çalışmak için buralara yerleşir. Riskli öğeler en üstte." />
         </StackPanel>
 
         <DockPanel Grid.Row="1" Margin="0,0,0,10" LastChildFill="False">
@@ -33,17 +33,19 @@
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <Ellipse Style="{StaticResource RiskDot}" Width="8" Height="8" Margin="2,0,8,0"
-                                         Fill="{Binding Risk, Converter={StaticResource RiskBrush}}" ToolTip="{Binding Risk, Converter={StaticResource RiskText}}" />
+                                         Fill="{Binding Risk, Converter={StaticResource RiskBrushHideNone}}" ToolTip="{Binding Risk, Converter={StaticResource RiskText}}" />
                                 <Image Source="{Binding Icon}" Width="16" Height="16" Margin="0,0,8,0" />
                                 <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                <ui:SymbolIcon Symbol="Warning16" Margin="6,0,0,0" Foreground="{Binding Risk, Converter={StaticResource RiskBrush}}"
+                                               Visibility="{Binding Risk, Converter={StaticResource RiskWarningVisibility}}" />
                             </StackPanel>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
                 <DataGridTextColumn Header="Tür" Binding="{Binding Category}" Width="1*" />
                 <DataGridTextColumn Header="Durum" Binding="{Binding EnabledText}" Width="85" />
-                <DataGridTextColumn Header="Dosya" Binding="{Binding Target}" Width="2*" />
-                <DataGridTextColumn Header="İmza" Binding="{Binding Signature}" Width="1.2*" />
+                <DataGridTextColumn Header="Çalıştırılan dosya" Binding="{Binding Target}" Width="2*" />
+                <DataGridTextColumn Header="Yayımcı" Binding="{Binding Signature}" Width="1.2*" />
             </DataGrid.Columns>
         </DataGrid>
 
@@ -70,7 +72,7 @@
                     <ItemsControl ItemsSource="{Binding Reasons}" Margin="0,6,0,0">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <TextBlock Text="{Binding StringFormat='• {0}'}" Style="{StaticResource Body}" FontSize="12" Margin="0,1" />
+                                <TextBlock Text="{Binding StringFormat='• {0}'}" Style="{StaticResource Body}" Margin="0,1" />
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

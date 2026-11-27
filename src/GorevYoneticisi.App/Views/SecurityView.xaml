@@ -17,23 +17,27 @@
                         <StackPanel Orientation="Horizontal">
                             <Image Source="{Binding Icon}" Width="16" Height="16" Margin="0,0,8,0" />
                             <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="14" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                            <TextBlock Text="{Binding Level, Converter={StaticResource RiskText}}" Margin="10,0,0,0" FontSize="12" VerticalAlignment="Center"
-                                       Foreground="{Binding Level, Converter={StaticResource RiskBrush}}" />
+                            <Border CornerRadius="4" Padding="6,1" Margin="10,0,0,0" VerticalAlignment="Center"
+                                    BorderThickness="1" BorderBrush="{Binding Level, Converter={StaticResource RiskBrush}}">
+                                <TextBlock Text="{Binding Level, Converter={StaticResource RiskText}}" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            </Border>
                         </StackPanel>
                         <TextBlock Text="{Binding Subtitle}" Style="{StaticResource Caption}" Margin="0,2,0,0" />
-                        <TextBlock Text="{Binding Description}" Style="{StaticResource Body}" FontSize="12" Margin="0,6,0,0" />
+                        <TextBlock Text="{Binding Description}" Style="{StaticResource Body}" Margin="0,6,0,0"
+                                   Visibility="{Binding Description, Converter={StaticResource NullToVisibility}}" />
                         <ItemsControl ItemsSource="{Binding Reasons}" Margin="0,4,0,0">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="{Binding StringFormat='• {0}'}" Style="{StaticResource Body}" FontSize="12" Margin="0,1" />
+                                    <TextBlock Text="{Binding StringFormat='• {0}'}" Style="{StaticResource Body}" Margin="0,1" />
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </StackPanel>
-                    <StackPanel Grid.Column="2" VerticalAlignment="Top" Margin="12,0,0,0">
+                    <StackPanel Grid.Column="2" VerticalAlignment="Top" Margin="12,0,0,0" MinWidth="150">
                         <ui:Button Content="İşlemlerde göster" Margin="0,0,0,6" HorizontalAlignment="Stretch"
                                    Command="{Binding DataContext.ShowInProcessesCommand, ElementName=Root}" CommandParameter="{Binding}" />
                         <ui:Button Content="VirusTotal'de ara" HorizontalAlignment="Stretch"
+                                   ToolTip="Dosyanın parmak izi ile VirusTotal tarayıcıda açılır; dosyanın kendisi gönderilmez."
                                    Command="{Binding DataContext.VirusTotalCommand, ElementName=Root}" CommandParameter="{Binding}" />
                     </StackPanel>
                 </Grid>
@@ -45,7 +49,7 @@
         <StackPanel Margin="0,0,4,16">
             <TextBlock Text="Güvenlik" Style="{StaticResource PageTitle}" />
             <TextBlock Style="{StaticResource PageSubtitle}"
-                       Text="Bazı virüsler kendini Windows Görev Yöneticisi'nden gizler. Bu sayfa çalışan işlemleri birbirinden bağımsız birkaç yöntemle sayar ve karşılaştırır: bir yöntemde görünüp Windows'un listesinde görünmeyen işlem gizleniyor demektir. Ayrıca imzasız, garip yerlerden çalışan ya da sistem dosyası taklidi yapan programları işaretler." />
+                       Text="Bazı virüsler kendini Görev Yöneticisi'nden gizler. Bu sayfa çalışan programları birkaç farklı yolla sayıp sonuçları karşılaştırır: bir yolda görünüp Windows'un listesinde görünmeyen program kendini saklıyor olabilir. Ayrıca imzasız, alışılmadık klasörlerden çalışan ya da Windows dosyası gibi görünen programları işaretler." />
 
             <!-- Verdict -->
             <Border Style="{StaticResource Panel}" Margin="0,0,0,12">
@@ -55,38 +59,56 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <Ellipse Width="18" Height="18" Fill="{Binding VerdictLevel, Converter={StaticResource RiskBrush}}" Margin="0,0,14,0" VerticalAlignment="Center" />
+                    <Ellipse Width="18" Height="18" Fill="{Binding VerdictLevel, Converter={StaticResource RiskBrush}}" Margin="0,0,14,0" VerticalAlignment="Top" />
                     <StackPanel Grid.Column="1">
                         <TextBlock Text="{Binding Verdict}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding LastScan}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,4,0,0" />
-                        <TextBlock Text="{Binding MethodNote}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,4,0,0"
+                        <TextBlock Text="{Binding VerdictDetail}" Style="{StaticResource Body}" Margin="0,4,0,0"
+                                   Visibility="{Binding VerdictDetail, Converter={StaticResource NullToVisibility}}" />
+                        <TextBlock Text="{Binding LastScan}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                        <TextBlock Text="{Binding MethodNote}" Style="{StaticResource WarningText}" FontSize="12" Margin="0,4,0,0"
                                    Visibility="{Binding MethodNote, Converter={StaticResource NullToVisibility}}" />
-                        <TextBlock Text="Program yönetici olarak çalışmıyor; korumalı işlemler görülemeyebilir. Programı sağ tıklayıp 'Yönetici olarak çalıştır' deyin."
-                                   Foreground="#F5A524" TextWrapping="Wrap" Margin="0,6,0,0"
-                                   Visibility="{Binding IsElevated, Converter={StaticResource InverseBoolToVisibility}}" />
                     </StackPanel>
-                    <ui:Button Grid.Column="2" Content="Şimdi tara" Appearance="Primary" Icon="{ui:SymbolIcon ArrowSync24}"
-                               Command="{Binding ScanCommand}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                    <StackPanel Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center">
+                        <ui:Button Content="Şimdi tara" Appearance="Primary" Icon="{ui:SymbolIcon ArrowSync24}" Command="{Binding ScanCommand}" HorizontalAlignment="Stretch" />
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0" HorizontalAlignment="Center"
+                                    Visibility="{Binding IsScanning, Converter={StaticResource BoolToVisibility}}">
+                            <ui:ProgressRing IsIndeterminate="True" Height="16" Width="16" Margin="0,0,8,0" />
+                            <TextBlock Text="Taranıyor… (birkaç saniye)" Style="{StaticResource Caption}" />
+                        </StackPanel>
+                    </StackPanel>
                 </Grid>
             </Border>
-            <ui:ProgressRing IsIndeterminate="True" Height="24" Width="24" HorizontalAlignment="Left" Margin="0,0,0,12"
-                             Visibility="{Binding IsScanning, Converter={StaticResource BoolToVisibility}}" />
 
-            <!-- Hidden processes -->
-            <TextBlock Text="GİZLENEN İŞLEMLER" Style="{StaticResource CardTitle}" Margin="0,4,0,8" />
-            <TextBlock Text="Bulunamadı. Her tarama sonucunda tutarsızlık olup olmadığı burada gösterilir." Style="{StaticResource Caption}" Margin="0,0,0,12"
+            <TextBlock Text="{Binding Message}" Style="{StaticResource Caption}" Margin="0,0,0,8"
+                       Visibility="{Binding Message, Converter={StaticResource NullToVisibility}}" />
+
+            <!-- What should I do? -->
+            <Border Style="{StaticResource Panel}" Margin="0,0,0,12" Visibility="{Binding ShowAdvice, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Text="Ne yapmalıyım?" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    <TextBlock Style="{StaticResource Body}" Margin="0,6,0,0" Text="1. Programı tanıyorsanız (ör. bir oyunun, yazıcının ya da ekran kartının yazılımı) büyük olasılıkla sorun yoktur." />
+                    <TextBlock Style="{StaticResource Body}" Margin="0,4,0,0" Text="2. Tanımıyorsanız &quot;VirusTotal'de ara&quot; düğmesine basın; 70'ten fazla antivirüsün görüşünü gösterir." />
+                    <TextBlock Style="{StaticResource Body}" Margin="0,4,0,0" Text="3. Şüpheniz sürerse Windows Güvenliği'nde &quot;Microsoft Defender Çevrimdışı tarama&quot; çalıştırın." />
+                    <TextBlock Style="{StaticResource Body}" Margin="0,4,0,0" Text="4. Emin olmadan Windows'a ait programları sonlandırmayın." />
+                    <ui:Button Content="Windows Güvenliği'ni aç" Icon="{ui:SymbolIcon ShieldCheckmark24}" Command="{Binding OpenWindowsSecurityCommand}" Margin="0,10,0,0" />
+                </StackPanel>
+            </Border>
+
+            <!-- Hidden programs -->
+            <TextBlock Text="GİZLENEN PROGRAMLAR" Style="{StaticResource CardTitle}" Margin="0,4,0,8" />
+            <TextBlock Text="Gizlenen program bulunmadı. Bu bölüm her taramadan sonra güncellenir." Style="{StaticResource Caption}" Margin="0,0,0,12"
                        Visibility="{Binding HasHidden, Converter={StaticResource InverseBoolToVisibility}}" />
             <ItemsControl ItemsSource="{Binding HiddenFindings}" ItemTemplate="{StaticResource FindingTemplate}" />
 
-            <!-- Risky processes -->
-            <TextBlock Text="DİKKAT İSTEYEN ÇALIŞAN PROGRAMLAR" Style="{StaticResource CardTitle}" Margin="0,12,0,8" />
-            <TextBlock Text="Orta ya da yüksek riskli çalışan program yok." Style="{StaticResource Caption}" Margin="0,0,0,12"
+            <!-- Risky programs -->
+            <TextBlock Text="DİKKAT GEREKTİREN PROGRAMLAR" Style="{StaticResource CardTitle}" Margin="0,12,0,8" />
+            <TextBlock Text="Şu an dikkat gerektiren bir program çalışmıyor." Style="{StaticResource Caption}" Margin="0,0,0,12"
                        Visibility="{Binding HasRisky, Converter={StaticResource InverseBoolToVisibility}}" />
             <ItemsControl ItemsSource="{Binding RiskyProcesses}" ItemTemplate="{StaticResource FindingTemplate}" />
 
             <!-- Honest limits -->
             <ui:InfoBar Title="Bu araç neyi yapabilir, neyi yapamaz?" IsOpen="True" IsClosable="False" Severity="Informational" Margin="0,16,0,0"
-                        Message="Kendini kullanıcı seviyesinde gizleyen ve sistem dosyası taklidi yapan zararlıların çoğunu yakalar. Windows çekirdeğine yerleşmiş gelişmiş rootkit'ler ise her programdan (bu dahil) saklanabilir. 'Risk' bir tahmindir, kesin teşhis değildir: şüpheli bir şey görürseniz VirusTotal ile kontrol edin ve Microsoft Defender ile tam tarama yapın." />
+                        Message="Kendini Windows listelerinden gizleyen ve Windows dosyası gibi görünen zararlıların çoğunu yakalar. Windows'un en derinine (çekirdeğe) yerleşmiş gelişmiş zararlılar ise her programdan, bundan da, saklanabilir. Risk bir tahmindir, kesin teşhis değildir." />
         </StackPanel>
     </ScrollViewer>
 </UserControl>

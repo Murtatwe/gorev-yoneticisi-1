@@ -16,7 +16,7 @@ public sealed record SignatureInfo(SignatureStatus Status, string? Signer, bool 
         SignatureStatus.Signed => Signer ?? "İmzalı",
         SignatureStatus.Unsigned when StorePackage => "Store paketi (paket imzalı)",
         SignatureStatus.Unsigned => "İmzasız",
-        SignatureStatus.Invalid => "Geçersiz imza!",
+        SignatureStatus.Invalid => "Geçersiz imza",
         SignatureStatus.Untrusted => "Güvenilmeyen imza",
         SignatureStatus.Expired => (Signer ?? "İmzalı") + " (süresi dolmuş)",
         _ => CheckFailed ? "Denetlenemedi" : "…",

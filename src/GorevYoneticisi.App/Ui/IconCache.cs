@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 
 namespace GorevYoneticisi.App.Ui;
 
@@ -41,6 +42,47 @@ public static class IconCache
         if (Cache.Count > 2000) Cache.Clear();
         Cache[path] = icon;
         return icon;
+    }
+
+    private static readonly Dictionary<string, List<Action<ImageSource?>>> Pending = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Queue<string> Order = new();
+    private static bool _pumping;
+
+    /// <summary>
+    /// Non-blocking variant: returns the cached icon, or the generic one right away and calls
+    /// <paramref name="loaded"/> later (when the UI is idle) with the real icon.
+    /// </summary>
+    public static ImageSource? GetOrQueue(string? path, Action<ImageSource?> loaded)
+    {
+        if (string.IsNullOrEmpty(path)) return Default();
+        if (Cache.TryGetValue(path, out var cached)) return cached;
+        if (!Pending.TryGetValue(path, out var callbacks))
+        {
+            callbacks = new List<Action<ImageSource?>>();
+            Pending[path] = callbacks;
+            Order.Enqueue(path);
+        }
+        callbacks.Add(loaded);
+        if (!_pumping)
+        {
+            _pumping = true;
+            Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, Pump);
+        }
+        return Default();
+    }
+
+    private static void Pump()
+    {
+        // A few icons per idle slot keeps the UI responsive even with hundreds of new rows.
+        for (int i = 0; i < 12 && Order.Count > 0; i++)
+        {
+            string path = Order.Dequeue();
+            var icon = Get(path);
+            if (Pending.Remove(path, out var callbacks))
+                foreach (var cb in callbacks) cb(icon);
+        }
+        if (Order.Count > 0) Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, Pump);
+        else _pumping = false;
     }
 
     private static ImageSource? Default() =>

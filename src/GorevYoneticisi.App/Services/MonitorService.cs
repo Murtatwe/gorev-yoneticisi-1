@@ -79,6 +79,11 @@ public sealed class MonitorService : IDisposable
     public event Action<MonitorSnapshot>? SnapshotReady;
     public event Action<SecurityReport>? SecurityReportReady;
     public event Action? SignaturesUpdated;
+    /// <summary>Collection or scan errors (null = recovered). Called on a background thread.</summary>
+    public event Action<string?>? ErrorChanged;
+    public event Action<string>? SecurityScanFailed;
+
+    private readonly HashSet<string> _loggedErrors = new();
 
     public void Start()
     {
@@ -96,12 +101,21 @@ public sealed class MonitorService : IDisposable
             try
             {
                 var snapshot = Collect();
-                LastError = null;
+                if (LastError is not null)
+                {
+                    LastError = null;
+                    ErrorChanged?.Invoke(null);
+                }
                 SnapshotReady?.Invoke(snapshot);
             }
             catch (Exception ex)
             {
-                LastError = ex.Message;
+                if (LastError != ex.Message)
+                {
+                    LastError = ex.Message;
+                    ErrorChanged?.Invoke(ex.Message);
+                }
+                if (_loggedErrors.Add(ex.Message)) App.Log(ex, "Veri toplama hatası");
             }
 
             var scanEvery = FastSecurityScans && SecurityInterval > TimeSpan.FromSeconds(10) ? TimeSpan.FromSeconds(10) : SecurityInterval;
@@ -228,6 +242,12 @@ public sealed class MonitorService : IDisposable
         {
             return null;
         }
+        catch (Exception ex)
+        {
+            App.Log(ex, "Güvenlik taraması hatası");
+            SecurityScanFailed?.Invoke(ex.Message);
+            return null;
+        }
         finally
         {
             _scanLock.Release();
@@ -268,8 +288,8 @@ public sealed class MonitorService : IDisposable
     public void Dispose()
     {
         _cts.Cancel();
-        bool stopped = _thread?.Join(TimeSpan.FromSeconds(10)) ?? true;
-        try { _scanTask?.Wait(TimeSpan.FromSeconds(5)); } catch { /* cancelled */ }
+        bool stopped = _thread?.Join(TimeSpan.FromSeconds(3)) ?? true;
+        try { _scanTask?.Wait(TimeSpan.FromSeconds(2)); } catch { /* cancelled or failed; already logged */ }
         _signatures.Dispose();
         // Closing PDH queries while the collector thread is still inside PDH could crash natively.
         if (stopped) _metrics.Dispose();

@@ -39,7 +39,12 @@ public sealed class SettingsViewModel : ObservableObject
         new Choice<int>("Her 5 dakikada", 300),
     };
 
-    public IReadOnlyList<string> Themes { get; } = new[] { "Koyu", "Açık", "Sistem" };
+    public IReadOnlyList<Choice<string>> Themes { get; } = new[]
+    {
+        new Choice<string>("Koyu", "Koyu"),
+        new Choice<string>("Açık", "Açık"),
+        new Choice<string>("Windows ile aynı", "Sistem"),
+    };
 
     public Choice<int> Refresh
     {
@@ -67,14 +72,27 @@ public sealed class SettingsViewModel : ObservableObject
         }
     }
 
-    public string Theme
+    public Choice<string> Theme
     {
-        get => _settings.Theme;
+        get => Themes.FirstOrDefault(t => t.Value == _settings.Theme) ?? Themes[0];
         set
         {
-            if (value is null || value == _settings.Theme) return;
-            _settings.Theme = value;
-            _settings.ApplyTheme();
+            if (value is null || value.Value == _settings.Theme) return;
+            _settings.Theme = value.Value;
+            _settings.ApplyTheme(System.Windows.Application.Current.MainWindow);
+            _settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    public bool AlwaysOnTop
+    {
+        get => _settings.AlwaysOnTop;
+        set
+        {
+            if (_settings.AlwaysOnTop == value) return;
+            _settings.AlwaysOnTop = value;
+            if (System.Windows.Application.Current.MainWindow is { } w) w.Topmost = value;
             _settings.Save();
             OnPropertyChanged();
         }

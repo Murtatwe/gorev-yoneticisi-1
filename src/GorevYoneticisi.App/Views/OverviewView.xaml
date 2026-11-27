@@ -7,8 +7,8 @@
         <SolidColorBrush x:Key="MemColor" Color="#A66CFF" />
         <SolidColorBrush x:Key="GpuColor" Color="#2DC9A0" />
         <SolidColorBrush x:Key="DiskColor" Color="#F5A524" />
-        <SolidColorBrush x:Key="DownColor" Color="#E5484D" />
-        <SolidColorBrush x:Key="UpColor" Color="#F38BA8" />
+        <SolidColorBrush x:Key="DownColor" Color="#4C9AFF" />
+        <SolidColorBrush x:Key="UpColor" Color="#2DC9A0" />
 
         <DataTemplate x:Key="TopItem">
             <Grid Margin="0,4">
@@ -29,7 +29,7 @@
             <TextBlock Text="Genel Bakış" Style="{StaticResource PageTitle}" />
             <TextBlock Style="{StaticResource PageSubtitle}">
                 <Run Text="{Binding OsName, Mode=OneWay}" /><Run Text="  ·  Açık kalma süresi: " /><Run Text="{Binding Uptime, Mode=OneWay}" />
-                <Run Text="  ·  " /><Run Text="{Binding Counts, Mode=OneWay}" />
+                <Run Text="  ·  " /><Run Text="{Binding Counts, Mode=OneWay}" /><Run Text="  ·  Grafikler son 60 saniyeyi gösterir" />
             </TextBlock>
 
             <UniformGrid Columns="2">
@@ -104,7 +104,7 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <StackPanel>
-                        <TextBlock Text="AĞ · İNDİRME" Style="{StaticResource CardTitle}" />
+                        <TextBlock Text="AĞ · İNDİRME" Style="{StaticResource CardTitle}" ToolTip="Fiziksel ağ bağdaştırıcılarının toplamı (sanal bağdaştırıcılar hariç)." />
                         <TextBlock Text="{Binding NetDown}" Style="{StaticResource BigValue}" FontSize="22" Margin="0,6,0,4" />
                         <u:Sparkline Values="{Binding DownHistory}" Stroke="{StaticResource DownColor}" AutoScale="True" Height="60" />
                     </StackPanel>
