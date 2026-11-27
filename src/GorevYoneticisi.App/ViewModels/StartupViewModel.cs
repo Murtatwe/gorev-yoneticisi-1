@@ -131,11 +131,9 @@ public sealed class StartupViewModel : ObservableObject
         try
         {
             var entries = await Task.Run(() => new StartupItems().Read());
-            using (View.DeferRefresh())
-            {
-                Rows.Clear();
-                foreach (var e in entries) Rows.Add(new StartupRow(e));
-            }
+            // Note: CollectionView.DeferRefresh cannot be combined with ObservableCollection changes (WPF throws).
+            Rows.Clear();
+            foreach (var e in entries) Rows.Add(new StartupRow(e));
             RefreshSignatures(force: true);
         }
         catch (Exception ex)

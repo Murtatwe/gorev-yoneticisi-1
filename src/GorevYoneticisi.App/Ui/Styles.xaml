@@ -74,6 +74,27 @@
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
+    <!-- Clickable group header row in the process list -->
+    <Style x:Key="GroupHeaderToggle" TargetType="ToggleButton">
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Bd" Background="Transparent" CornerRadius="4" Margin="0,1">
+                        <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Navigation list in the sidebar -->
     <Style x:Key="NavItem" TargetType="ListBoxItem">
         <Setter Property="Padding" Value="12,9" />

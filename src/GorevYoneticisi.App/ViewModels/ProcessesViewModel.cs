@@ -42,6 +42,8 @@ public sealed class AppGroup : ObservableObject
     public RiskLevel Risk { get => _risk; set => SetProperty(ref _risk, value); }
     public string CpuText => Format.Percent(_cpu);
     public string MemoryText => Format.Bytes(_memory);
+    public double MemoryPercent { get => _memoryPercent; set => SetProperty(ref _memoryPercent, value); }
+    private double _memoryPercent;
     public string GpuText => _gpu <= 0 ? "" : Format.Percent(_gpu);
     public string IoText => _io < 1 ? "" : Format.Rate(_io);
     public string CountText => _count == 1 ? "" : $"({_count})";
@@ -366,6 +368,7 @@ public sealed class ProcessesViewModel : ObservableObject
             alive.Add(g.Key);
             g.Cpu = Math.Round(grp.Sum(r => r.Cpu), 1);
             g.Memory = grp.Sum(r => r.Memory);
+            g.MemoryPercent = g.Memory * 100.0 / _totalMemory;
             g.Gpu = Math.Round(Math.Min(100, grp.Sum(r => r.Gpu)), 1);
             g.Io = grp.Sum(r => r.Io);
             g.Count = grp.Count();

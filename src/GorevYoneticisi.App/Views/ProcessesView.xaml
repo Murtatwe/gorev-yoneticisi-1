@@ -48,7 +48,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" MinWidth="420" />
+            <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
 
@@ -75,7 +75,7 @@
                   HeadersVisibility="Column" GridLinesVisibility="None" CanUserResizeRows="False"
                   EnableRowVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
                   VirtualizingPanel.IsVirtualizingWhenGrouping="True" ColumnHeaderHeight="48"
-                  RowHeight="30" ContextMenu="{StaticResource RowMenu}"
+                  RowHeight="30" ContextMenu="{StaticResource RowMenu}" HorizontalScrollBarVisibility="Auto"
                   PreviewMouseRightButtonDown="Grid_PreviewMouseRightButtonDown">
             <DataGrid.InputBindings>
                 <KeyBinding Key="Delete" Command="{Binding KillCommand}" />
@@ -88,31 +88,55 @@
                             <Setter Property="Template">
                                 <Setter.Value>
                                     <ControlTemplate TargetType="GroupItem">
-                                        <Expander IsExpanded="False" Margin="0,1" Padding="0">
-                                            <Expander.Header>
-                                                <Grid DataContext="{Binding Name}" Margin="0,2">
+                                        <StackPanel>
+                                            <!-- Columns mirror the DataGrid columns below so the sums line up. -->
+                                            <ToggleButton x:Name="Toggle" Style="{StaticResource GroupHeaderToggle}" Click="GroupHeader_Click"
+                                                          ToolTip="Tıklayınca bu uygulamanın işlemleri açılır">
+                                                <Grid DataContext="{Binding Name}" Height="30">
                                                     <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="72" />
-                                                        <ColumnDefinition Width="92" />
-                                                        <ColumnDefinition Width="68" />
-                                                        <ColumnDefinition Width="96" />
+                                                        <ColumnDefinition Width="*" MinWidth="160" />
+                                                        <ColumnDefinition Width="64" />
+                                                        <ColumnDefinition Width="84" />
+                                                        <ColumnDefinition Width="60" />
+                                                        <ColumnDefinition Width="84" />
+                                                        <ColumnDefinition Width="80" />
+                                                        <ColumnDefinition Width="56" />
+                                                        <ColumnDefinition Width="140" />
                                                     </Grid.ColumnDefinitions>
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <ui:SymbolIcon Symbol="Warning16" Margin="0,0,6,0" Foreground="{Binding Risk, Converter={StaticResource RiskBrush}}"
-                                                                       Visibility="{Binding Risk, Converter={StaticResource RiskWarningVisibility}}" />
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <ui:SymbolIcon x:Name="Chevron" Symbol="ChevronRight16" FontSize="12" Margin="2,0,4,0" RenderTransformOrigin="0.5,0.5">
+                                                            <ui:SymbolIcon.RenderTransform><RotateTransform Angle="0" /></ui:SymbolIcon.RenderTransform>
+                                                        </ui:SymbolIcon>
+                                                        <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center" Fill="{Binding Risk, Converter={StaticResource RiskBrushHideNone}}" />
                                                         <Image Source="{Binding Icon}" Width="16" Height="16" Margin="0,0,8,0" />
                                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                                         <TextBlock Text="{Binding CountText}" Style="{StaticResource Caption}" Margin="6,0,0,0" VerticalAlignment="Center" />
+                                                        <ui:SymbolIcon Symbol="Warning16" Margin="6,0,0,0" Foreground="{Binding Risk, Converter={StaticResource RiskBrush}}"
+                                                                       Visibility="{Binding Risk, Converter={StaticResource RiskWarningVisibility}}" />
                                                     </StackPanel>
-                                                    <TextBlock Grid.Column="1" Text="{Binding CpuText}" Style="{StaticResource NumberCell}" FontWeight="SemiBold" />
-                                                    <TextBlock Grid.Column="2" Text="{Binding MemoryText}" Style="{StaticResource NumberCell}" FontWeight="SemiBold" />
-                                                    <TextBlock Grid.Column="3" Text="{Binding GpuText}" Style="{StaticResource NumberCell}" FontWeight="SemiBold" />
-                                                    <TextBlock Grid.Column="4" Text="{Binding IoText}" Style="{StaticResource NumberCell}" FontWeight="SemiBold" />
+                                                    <Border Grid.Column="1" Background="{Binding Cpu, Converter={StaticResource Heat}, ConverterParameter=50}">
+                                                        <TextBlock Text="{Binding CpuText}" Style="{StaticResource NumberCell}" FontWeight="SemiBold" />
+                                                    </Border>
+                                                    <Border Grid.Column="2" Background="{Binding MemoryPercent, Converter={StaticResource Heat}, ConverterParameter=15}">
+                                                        <TextBlock Text="{Binding MemoryText}" Style="{StaticResource NumberCell}" FontWeight="SemiBold" />
+                                                    </Border>
+                                                    <Border Grid.Column="3" Background="{Binding Gpu, Converter={StaticResource Heat}, ConverterParameter=60}">
+                                                        <TextBlock Text="{Binding GpuText}" Style="{StaticResource NumberCell}" FontWeight="SemiBold" />
+                                                    </Border>
+                                                    <Border Grid.Column="4" Background="{Binding Io, Converter={StaticResource Heat}, ConverterParameter=50000000}">
+                                                        <TextBlock Text="{Binding IoText}" Style="{StaticResource NumberCell}" FontWeight="SemiBold" />
+                                                    </Border>
                                                 </Grid>
-                                            </Expander.Header>
-                                            <ItemsPresenter />
-                                        </Expander>
+                                            </ToggleButton>
+                                            <ItemsPresenter Visibility="{Binding IsChecked, ElementName=Toggle, Converter={StaticResource BoolToVisibility}}" />
+                                        </StackPanel>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger SourceName="Toggle" Property="IsChecked" Value="True">
+                                                <Setter TargetName="Chevron" Property="RenderTransform">
+                                                    <Setter.Value><RotateTransform Angle="90" /></Setter.Value>
+                                                </Setter>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
                                     </ControlTemplate>
                                 </Setter.Value>
                             </Setter>
@@ -122,7 +146,7 @@
             </DataGrid.GroupStyle>
 
             <DataGrid.Columns>
-                <DataGridTemplateColumn Header="Ad" Width="*" MinWidth="180" SortMemberPath="Name" CanUserSort="True">
+                <DataGridTemplateColumn Header="Ad" Width="*" MinWidth="160" SortMemberPath="Name" CanUserSort="True">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -142,7 +166,7 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTemplateColumn Width="72" SortMemberPath="Cpu" SortDirection="Descending"
+                <DataGridTemplateColumn Width="64" MinWidth="64" SortMemberPath="Cpu" SortDirection="Descending"
                                         Header="{Binding Data.CpuHeader, Source={StaticResource Proxy}}" HeaderTemplate="{StaticResource TwoLineHeader}">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
@@ -153,7 +177,7 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTemplateColumn Width="92" SortMemberPath="Memory"
+                <DataGridTemplateColumn Width="84" MinWidth="84" SortMemberPath="Memory"
                                         Header="{Binding Data.MemoryHeader, Source={StaticResource Proxy}}" HeaderTemplate="{StaticResource TwoLineHeader}">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
@@ -165,7 +189,7 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTemplateColumn Width="68" SortMemberPath="Gpu"
+                <DataGridTemplateColumn Width="60" MinWidth="60" SortMemberPath="Gpu"
                                         Header="{Binding Data.GpuHeader, Source={StaticResource Proxy}}" HeaderTemplate="{StaticResource TwoLineHeader}">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
@@ -176,7 +200,7 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTemplateColumn Width="96" SortMemberPath="Io"
+                <DataGridTemplateColumn Width="84" MinWidth="84" SortMemberPath="Io"
                                         Header="{Binding Data.IoHeader, Source={StaticResource Proxy}}" HeaderTemplate="{StaticResource TwoLineHeader}">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
@@ -188,16 +212,20 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTextColumn Header="GPU bellek" Binding="{Binding GpuMemoryText}" SortMemberPath="GpuMemory" Width="88"
+                <DataGridTextColumn Header="GPU bellek" Binding="{Binding GpuMemoryText}" SortMemberPath="GpuMemory" Width="80" MinWidth="80"
                                     ElementStyle="{StaticResource NumberCell}" />
-                <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="64" ElementStyle="{StaticResource NumberCell}" />
-                <DataGridTextColumn Header="Yayımcı" Binding="{Binding Signature}" Width="150" />
+                <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="56" MinWidth="56" ElementStyle="{StaticResource NumberCell}" />
+                <DataGridTextColumn Header="Yayımcı" Binding="{Binding Signature}" Width="140" MinWidth="140" />
             </DataGrid.Columns>
         </DataGrid>
 
         <!-- Details (only when something is selected) -->
-        <Border Grid.Row="2" Grid.Column="1" Style="{StaticResource Panel}" Margin="12,0,0,0" Width="320"
+        <Border x:Name="DetailsPanel" Grid.Row="2" Grid.Column="1" Style="{StaticResource Panel}" Margin="12,0,0,0" Width="320"
+                Background="{DynamicResource ApplicationBackgroundBrush}"
                 Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibility}}">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="16" ShadowDepth="2" Opacity="0.35" />
+            </Border.Effect>
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel>
                     <Grid>
