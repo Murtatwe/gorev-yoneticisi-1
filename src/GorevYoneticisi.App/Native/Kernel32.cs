@@ -80,6 +80,9 @@ internal static class Kernel32
     public static extern int GetProcessId(IntPtr process);
 
     [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool GetProcessTimes(IntPtr process, out long creation, out long exit, out long kernel, out long user);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
     public static extern bool TerminateProcess(IntPtr process, uint exitCode);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
