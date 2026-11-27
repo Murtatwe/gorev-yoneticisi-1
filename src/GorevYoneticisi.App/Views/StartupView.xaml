@@ -1,0 +1,85 @@
+<UserControl x:Class="GorevYoneticisi.App.Views.StartupView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock Text="Başlangıç" Style="{StaticResource PageTitle}" />
+            <TextBlock Style="{StaticResource PageSubtitle}"
+                       Text="Windows açılırken ya da belirli zamanlarda kendiliğinden çalışan her şey: kayıt defteri, Başlangıç klasörü, zamanlanmış görevler, servisler ve sürücüler. Zararlılar bilgisayar her açıldığında yeniden çalışmak için buralara yerleşir. Riskli öğeler en üstte listelenir." />
+        </StackPanel>
+
+        <DockPanel Grid.Row="1" Margin="0,0,0,10" LastChildFill="False">
+            <ui:TextBox DockPanel.Dock="Left" Width="300" PlaceholderText="Ad, komut ya da tür ile ara…"
+                        Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" Icon="{ui:SymbolIcon Search24}" />
+            <CheckBox DockPanel.Dock="Left" Content="Microsoft imzalı öğeleri gizle" IsChecked="{Binding HideMicrosoft}" Margin="16,0,0,0" VerticalAlignment="Center" />
+            <ui:Button DockPanel.Dock="Left" Content="Yenile" Icon="{ui:SymbolIcon ArrowSync24}" Command="{Binding RefreshCommand}" Margin="12,0,0,0" />
+            <TextBlock DockPanel.Dock="Right" Text="{Binding Summary}" Style="{StaticResource Caption}" VerticalAlignment="Center" />
+        </DockPanel>
+
+        <DataGrid Grid.Row="2" ItemsSource="{Binding View}" SelectedItem="{Binding Selected, Mode=TwoWay}"
+                  AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="None"
+                  RowHeight="30" SelectionMode="Single" EnableRowVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling">
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Header="Ad" Width="1.5*" SortMemberPath="Name">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Ellipse Style="{StaticResource RiskDot}" Width="8" Height="8" Margin="2,0,8,0"
+                                         Fill="{Binding Risk, Converter={StaticResource RiskBrush}}" ToolTip="{Binding Risk, Converter={StaticResource RiskText}}" />
+                                <Image Source="{Binding Icon}" Width="16" Height="16" Margin="0,0,8,0" />
+                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="Tür" Binding="{Binding Category}" Width="1*" />
+                <DataGridTextColumn Header="Durum" Binding="{Binding EnabledText}" Width="85" />
+                <DataGridTextColumn Header="Dosya" Binding="{Binding Target}" Width="2*" />
+                <DataGridTextColumn Header="İmza" Binding="{Binding Signature}" Width="1.2*" />
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Selected item details -->
+        <Border Grid.Row="3" Style="{StaticResource Panel}" Margin="0,10,0,0"
+                Visibility="{Binding Selected, Converter={StaticResource NullToVisibility}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel DataContext="{Binding Selected}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="15" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <TextBlock Text="{Binding Risk, Converter={StaticResource RiskText}}" Margin="10,0,0,0" VerticalAlignment="Center"
+                                   Foreground="{Binding Risk, Converter={StaticResource RiskBrush}}" />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,0" TextWrapping="Wrap">
+                        <Run Text="Konum: " /><Run Text="{Binding Location, Mode=OneWay}" />
+                    </TextBlock>
+                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap">
+                        <Run Text="Komut: " /><Run Text="{Binding Command, Mode=OneWay}" />
+                    </TextBlock>
+                    <ItemsControl ItemsSource="{Binding Reasons}" Margin="0,6,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding StringFormat='• {0}'}" Style="{StaticResource Body}" FontSize="12" Margin="0,1" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Top">
+                    <ui:Button Content="Dosya konumunu aç" Icon="{ui:SymbolIcon FolderOpen24}" Command="{Binding OpenLocationCommand}" Margin="0,0,0,6" HorizontalAlignment="Stretch" />
+                    <ui:Button Content="VirusTotal'de ara" Icon="{ui:SymbolIcon ShieldCheckmark24}" Command="{Binding VirusTotalCommand}" HorizontalAlignment="Stretch" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

@@ -1,2 +1,11 @@
+using Wpf.Ui.Controls;
+
 namespace GorevYoneticisi.App;
-public partial class MainWindow : System.Windows.Window { public MainWindow() { InitializeComponent(); } }
+
+public partial class MainWindow : FluentWindow
+{
+    public MainWindow()
+    {
+        InitializeComponent();
+    }
+}

@@ -1,0 +1,116 @@
+<UserControl x:Class="GorevYoneticisi.App.Views.ProcessesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="340" />
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.ColumnSpan="2">
+            <TextBlock Text="İşlemler" Style="{StaticResource PageTitle}" />
+            <TextBlock Style="{StaticResource PageSubtitle}"
+                       Text="Çalışan her programın ne kadar kaynak kullandığı. Bir sütun başlığına tıklayarak sıralayın; bir satıra tıklayınca sağda ayrıntılar açılır. Bellek, programın kendine ayırdığı RAM'dir (Windows Görev Yöneticisi'ndeki gibi). G/Ç, programın okuduğu ve yazdığı tüm veridir (disk, ağ dosyaları, borular)." />
+        </StackPanel>
+
+        <DockPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,0,0,10" LastChildFill="False">
+            <ui:TextBox DockPanel.Dock="Left" Width="320" PlaceholderText="Ad, PID ya da yol ile ara…"
+                        Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" Icon="{ui:SymbolIcon Search24}" />
+            <CheckBox DockPanel.Dock="Left" Content="Yalnızca dikkat isteyenler" IsChecked="{Binding OnlyRisky}" Margin="16,0,0,0" VerticalAlignment="Center" />
+            <TextBlock DockPanel.Dock="Right" Text="{Binding Summary}" Style="{StaticResource Caption}" VerticalAlignment="Center" />
+        </DockPanel>
+
+        <DataGrid Grid.Row="2" Grid.Column="0"
+                  ItemsSource="{Binding View}"
+                  SelectedItem="{Binding Selected, Mode=TwoWay}"
+                  AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
+                  HeadersVisibility="Column" GridLinesVisibility="None" CanUserResizeRows="False"
+                  EnableRowVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                  RowHeight="30">
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Header="Ad" Width="2*" SortMemberPath="Name" CanUserSort="True">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Ellipse Style="{StaticResource RiskDot}" Width="8" Height="8" Margin="2,0,8,0"
+                                         Fill="{Binding Risk, Converter={StaticResource RiskBrush}}" ToolTip="{Binding Risk, Converter={StaticResource RiskText}}" />
+                                <Image Source="{Binding Icon}" Width="16" Height="16" Margin="0,0,8,0" />
+                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="  GİZLİ" Foreground="#E5484D" FontWeight="Bold" VerticalAlignment="Center"
+                                           Visibility="{Binding IsHidden, Converter={StaticResource BoolToVisibility}}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="70" />
+                <DataGridTextColumn Header="CPU" Binding="{Binding CpuText}" SortMemberPath="Cpu" Width="70" />
+                <DataGridTextColumn Header="Bellek" Binding="{Binding MemoryText}" SortMemberPath="Memory" Width="90" />
+                <DataGridTextColumn Header="GPU" Binding="{Binding GpuText}" SortMemberPath="Gpu" Width="65" />
+                <DataGridTextColumn Header="GPU bellek" Binding="{Binding GpuMemoryText}" SortMemberPath="GpuMemory" Width="90" />
+                <DataGridTextColumn Header="G/Ç" Binding="{Binding IoText}" SortMemberPath="Io" Width="95" />
+                <DataGridTextColumn Header="İmza" Binding="{Binding Signature}" Width="1.3*" />
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Details -->
+        <Border Grid.Row="2" Grid.Column="1" Style="{StaticResource Panel}" Margin="12,0,0,0">
+            <Grid>
+                <TextBlock Text="Ayrıntıları görmek için listeden bir işlem seçin." Style="{StaticResource Caption}" TextWrapping="Wrap"
+                           Visibility="{Binding Selected, Converter={StaticResource NullToVisibleOnly}}" />
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Visibility="{Binding Selected, Converter={StaticResource NullToVisibility}}">
+                    <StackPanel DataContext="{Binding Selected}">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="{Binding Icon}" Width="24" Height="24" Margin="0,0,10,0" />
+                            <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <Border CornerRadius="6" Padding="10,6" Margin="0,12,0,0" Background="{Binding Risk, Converter={StaticResource RiskBrush}}">
+                            <TextBlock Text="{Binding Risk, Converter={StaticResource RiskText}}" Foreground="White" FontWeight="SemiBold" />
+                        </Border>
+                        <ItemsControl ItemsSource="{Binding Reasons}" Margin="0,8,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding StringFormat='• {0}'}" Style="{StaticResource Body}" FontSize="12" Margin="0,2" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="DOSYA YOLU" Style="{StaticResource CardTitle}" Margin="0,14,0,2" />
+                        <TextBlock Text="{Binding Path, TargetNullValue='(okunamadı)'}" Style="{StaticResource Body}" FontSize="12" />
+
+                        <TextBlock Text="İMZA" Style="{StaticResource CardTitle}" Margin="0,10,0,2" />
+                        <TextBlock Text="{Binding Signature}" Style="{StaticResource Body}" FontSize="12" />
+
+                        <TextBlock Text="KOMUT SATIRI" Style="{StaticResource CardTitle}" Margin="0,10,0,2" />
+                        <TextBox Text="{Binding DataContext.CommandLine, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+                                 IsReadOnly="True" TextWrapping="Wrap" FontSize="12" MaxHeight="120" VerticalScrollBarVisibility="Auto" />
+
+                        <TextBlock Style="{StaticResource Caption}" Margin="0,10,0,0" TextWrapping="Wrap">
+                            <Run Text="PID " /><Run Text="{Binding Pid, Mode=OneWay}" />
+                            <Run Text=" · Üst işlem " /><Run Text="{Binding ParentPid, Mode=OneWay}" />
+                            <Run Text=" · " /><Run Text="{Binding Threads, Mode=OneWay}" /><Run Text=" iş parçacığı · " />
+                            <Run Text="{Binding Handles, Mode=OneWay}" /><Run Text=" tutamaç" />
+                        </TextBlock>
+
+                        <WrapPanel Margin="0,14,0,0" DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                            <ui:Button Content="Dosya konumunu aç" Icon="{ui:SymbolIcon FolderOpen24}" Command="{Binding OpenLocationCommand}" Margin="0,0,6,6" />
+                            <ui:Button Content="VirusTotal'de ara" Icon="{ui:SymbolIcon ShieldCheckmark24}" Command="{Binding VirusTotalCommand}" Margin="0,0,6,6"
+                                       ToolTip="Dosyanın SHA-256 parmak izi hesaplanır ve VirusTotal tarayıcıda açılır. Dosyanın kendisi gönderilmez." />
+                            <ui:Button Content="Yolu kopyala" Icon="{ui:SymbolIcon Copy24}" Command="{Binding CopyPathCommand}" Margin="0,0,6,6" />
+                            <ui:Button Content="Sonlandır" Icon="{ui:SymbolIcon Delete24}" Appearance="Danger" Command="{Binding KillCommand}" Margin="0,0,6,6" />
+                        </WrapPanel>
+                        <TextBlock Text="{Binding DataContext.Message, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>
