@@ -33,6 +33,15 @@ public class GpuTests
     }
 
     [Fact]
+    public void StripsPdhDuplicateSuffix()
+    {
+        Assert.True(GpuInstanceName.TryParseEngine("pid_5_luid_0x0_0x1_phys_0_eng_0_engtype_3D#1", out var e));
+        Assert.Equal("3D", e.EngineType);
+        Assert.True(GpuInstanceName.TryParseMemory("pid_5_luid_0x0_0x1_phys_0#2", out int pid, out _));
+        Assert.Equal(5, pid);
+    }
+
+    [Fact]
     public void ParsesProcessMemoryInstanceName()
     {
         Assert.True(GpuInstanceName.TryParseMemory("pid_42_luid_0x00000000_0x0000D1B8_phys_0", out var pid, out var luid));

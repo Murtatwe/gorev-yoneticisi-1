@@ -14,10 +14,16 @@ public static partial class GpuInstanceName
     [GeneratedRegex(@"^pid_(\d+)_luid_(0x[0-9A-Fa-f]+_0x[0-9A-Fa-f]+)_phys_(\d+)$")]
     private static partial Regex MemoryRegex();
 
+    [GeneratedRegex(@"#\d+$")]
+    private static partial Regex DuplicateSuffix();
+
+    /// <summary>PDH appends "#1", "#2"... to duplicate instance names.</summary>
+    private static string Clean(string name) => DuplicateSuffix().Replace(name, "");
+
     public static bool TryParseEngine(string name, out GpuEngineInstance instance)
     {
         instance = default;
-        var m = EngineRegex().Match(name);
+        var m = EngineRegex().Match(Clean(name));
         if (!m.Success) return false;
         if (!int.TryParse(m.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out int pid)) return false;
         instance = new GpuEngineInstance(
@@ -33,7 +39,7 @@ public static partial class GpuInstanceName
     {
         pid = 0;
         luid = "";
-        var m = MemoryRegex().Match(name);
+        var m = MemoryRegex().Match(Clean(name));
         if (!m.Success || !int.TryParse(m.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out pid))
             return false;
         luid = m.Groups[2].Value;

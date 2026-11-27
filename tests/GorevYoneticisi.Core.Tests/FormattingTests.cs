@@ -24,6 +24,21 @@ public class FormattingTests
     }
 
     [Theory]
+    [InlineData(1048575, "1,0 MB")]
+    [InlineData(1023.6, "1,0 KB")]
+    public void Bytes_PromotesUnitWhenRoundingReaches1024(double bytes, string expected)
+    {
+        Assert.Equal(expected, Format.Bytes(bytes));
+    }
+
+    [Fact]
+    public void Percent_NegativeZeroShowsZero()
+    {
+        Assert.Equal("%0", Format.Percent(-0.0));
+        Assert.Equal("%0", Format.Percent(-0.01));
+    }
+
+    [Theory]
     [InlineData(0, "0 B/sn")]
     [InlineData(2048, "2,0 KB/sn")]
     public void Rate_AppendsPerSecond(double bytesPerSecond, string expected)

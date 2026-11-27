@@ -6,7 +6,7 @@ public class ProcessTrackerTests
 {
     private static RawProcessSample Sample(int pid, long create, long cpu, ulong read = 0, ulong write = 0, string name = "app.exe") =>
         new(pid, ParentPid: 1, Name: name, CreateTime: create, CpuTime: cpu,
-            WorkingSet: 100, PrivateBytes: 50, ThreadCount: 3, HandleCount: 10,
+            WorkingSet: 100, PrivateWorkingSet: 50, ThreadCount: 3, HandleCount: 10,
             ReadBytes: read, WriteBytes: write, OtherBytes: 0);
 
     [Fact]

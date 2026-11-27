@@ -8,7 +8,7 @@ public sealed record RawProcessSample(
     long CreateTime,
     long CpuTime,
     long WorkingSet,
-    long PrivateBytes,
+    long PrivateWorkingSet,
     int ThreadCount,
     int HandleCount,
     ulong ReadBytes,

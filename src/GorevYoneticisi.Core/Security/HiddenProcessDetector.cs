@@ -8,78 +8,146 @@ public enum EnumerationMethod
     Toolhelp,
     /// <summary>EnumProcesses (psapi).</summary>
     EnumProcesses,
-    /// <summary>OpenProcess on every possible PID; only processes that are still running are counted.</summary>
+    /// <summary>OpenProcess on every possible PID; only processes confirmed still running.</summary>
     PidBruteForce,
     /// <summary>Owner PIDs of TCP/UDP endpoints.</summary>
     NetworkTable,
 }
 
-public sealed record HiddenProcessFinding(
-    int Pid,
-    IReadOnlyList<EnumerationMethod> SeenBy,
-    IReadOnlyList<EnumerationMethod> MissingFrom,
-    bool MissingFromPrimary,
-    int ConsecutiveScans)
+public enum HiddenKind
 {
-    /// <summary>Missing from the primary list = probably hidden on purpose. Otherwise only one API disagrees.</summary>
-    public RiskLevel Severity => MissingFromPrimary ? RiskLevel.High : RiskLevel.Medium;
+    /// <summary>Running (confirmed by opening it) but absent from Windows' process list: the classic rootkit signal.</summary>
+    HiddenFromAllLists,
+    /// <summary>Only a network endpoint refers to this PID. Often just a stale socket record.</summary>
+    OnlyInNetworkTable,
+    /// <summary>In the primary list but missing from Toolhelp or EnumProcesses. Usually timing; occasionally an API hook.</summary>
+    MissingFromSomeLists,
 }
 
 /// <summary>
-/// Cross-view detection: compares process lists obtained in independent ways.
-/// A discrepancy must persist for <see cref="RequiredConsecutiveScans"/> scans in a row,
-/// so processes that simply started or exited between two API calls are not reported.
+/// Inputs for one cross-view scan. A list is null when that method failed.
+/// <see cref="BruteForceAlive"/> must contain only processes confirmed to be running
+/// (WaitForSingleObject(handle, 0) == WAIT_TIMEOUT), mapped to their creation time.
+/// </summary>
+public sealed record CrossViewInput(
+    IReadOnlySet<int>? Primary,
+    IReadOnlySet<int>? Toolhelp,
+    IReadOnlySet<int>? EnumProcesses,
+    IReadOnlyDictionary<int, long> BruteForceAlive,
+    IReadOnlySet<int> NetworkOwners);
+
+public sealed record HiddenProcessFinding(int Pid, long CreateTime, HiddenKind Kind, IReadOnlyList<EnumerationMethod> MissingFrom, int ConsecutiveScans)
+{
+    public RiskLevel Severity => Kind == HiddenKind.HiddenFromAllLists ? RiskLevel.High : RiskLevel.Low;
+
+    public string Description => Kind switch
+    {
+        HiddenKind.HiddenFromAllLists =>
+            "Çalışıyor ama Windows'un işlem listelerinde görünmüyor. Zararlı yazılımlar kendini böyle gizler.",
+        HiddenKind.OnlyInNetworkTable =>
+            "Yalnızca bir ağ bağlantısı bu işlemi gösteriyor. Çoğunlukla kapanmış bir programdan kalan eski bir bağlantı kaydıdır.",
+        _ =>
+            "Bazı Windows listelerinde görünmüyor. Genellikle zamanlama farkıdır; sürekli tekrar ederse dikkat edin.",
+    };
+}
+
+public sealed record CrossViewResult(
+    bool PrimaryAvailable,
+    IReadOnlyList<EnumerationMethod> FailedMethods,
+    IReadOnlyList<HiddenProcessFinding> Findings);
+
+/// <summary>
+/// Cross-view detection. Note: Toolhelp and EnumProcesses are built on the same kernel call as the
+/// primary list, so the meaningful signal is the PID brute force (and, weakly, network tables).
+/// A discrepancy must persist for <see cref="RequiredConsecutiveScans"/> scans in a row, for the same
+/// process (PID + creation time), so processes that simply started or exited mid-scan are ignored.
 /// </summary>
 public sealed class HiddenProcessDetector
 {
     public const int RequiredConsecutiveScans = 2;
 
-    // Complete process lists. Brute force and network tables are partial by nature
-    // (protected processes may refuse OpenProcess, most processes have no sockets),
-    // so absence from them is never evidence of anything.
-    private static readonly EnumerationMethod[] ListMethods =
+    /// <summary>A list view holding fewer than this share of the largest list is considered broken.</summary>
+    public const double MinimumListShare = 0.5;
+
+    private readonly Dictionary<(int Pid, long Create, HiddenKind Kind), int> _streaks = new();
+
+    public CrossViewResult Analyze(CrossViewInput input)
     {
-        EnumerationMethod.NtQuerySystemInformation,
-        EnumerationMethod.Toolhelp,
-        EnumerationMethod.EnumProcesses,
-    };
+        var failed = new List<EnumerationMethod>();
+        int largest = new[] { input.Primary, input.Toolhelp, input.EnumProcesses }.Max(s => s?.Count ?? 0);
+        largest = Math.Max(largest, input.BruteForceAlive.Count);
 
-    private readonly Dictionary<int, int> _streaks = new();
-
-    public IReadOnlyList<HiddenProcessFinding> Analyze(IReadOnlyDictionary<EnumerationMethod, IReadOnlySet<int>> views)
-    {
-        IReadOnlySet<int> Get(EnumerationMethod m) =>
-            views.TryGetValue(m, out var s) ? s : new HashSet<int>();
-
-        var primary = Get(EnumerationMethod.NtQuerySystemInformation);
-        var all = new HashSet<int>();
-        foreach (var set in views.Values) all.UnionWith(set);
-        all.Remove(0); // System Idle Process is a pseudo-process; APIs disagree about it by design.
-
-        var findings = new List<HiddenProcessFinding>();
-        var seenThisScan = new HashSet<int>();
-
-        foreach (int pid in all.OrderBy(p => p))
+        IReadOnlySet<int>? Valid(IReadOnlySet<int>? set, EnumerationMethod method)
         {
-            var seenBy = views.Where(kv => kv.Value.Contains(pid)).Select(kv => kv.Key).OrderBy(m => m).ToArray();
-            var missingFrom = ListMethods
-                .Where(m => views.ContainsKey(m) && !views[m].Contains(pid))
-                .ToArray();
-            if (missingFrom.Length == 0) continue;
-
-            seenThisScan.Add(pid);
-            int streak = _streaks.TryGetValue(pid, out int s) ? s + 1 : 1;
-            _streaks[pid] = streak;
-
-            if (streak >= RequiredConsecutiveScans)
+            if (set is null || set.Count == 0 || set.Count < largest * MinimumListShare)
             {
-                findings.Add(new HiddenProcessFinding(pid, seenBy, missingFrom, !primary.Contains(pid), streak));
+                failed.Add(method);
+                return null;
+            }
+            return set;
+        }
+
+        var primary = Valid(input.Primary, EnumerationMethod.NtQuerySystemInformation);
+        var toolhelp = Valid(input.Toolhelp, EnumerationMethod.Toolhelp);
+        var psapi = Valid(input.EnumProcesses, EnumerationMethod.EnumProcesses);
+
+        if (primary is null)
+        {
+            _streaks.Clear();
+            return new CrossViewResult(false, failed, Array.Empty<HiddenProcessFinding>());
+        }
+
+        var candidates = new List<(int Pid, long Create, HiddenKind Kind, EnumerationMethod[] Missing)>();
+
+        foreach (var (pid, create) in input.BruteForceAlive)
+        {
+            if (pid != 0 && !primary.Contains(pid))
+                candidates.Add((pid, create, HiddenKind.HiddenFromAllLists, MissingLists(pid, primary, toolhelp, psapi)));
+        }
+
+        foreach (int pid in input.NetworkOwners)
+        {
+            if (pid != 0 && !primary.Contains(pid) && !input.BruteForceAlive.ContainsKey(pid))
+                candidates.Add((pid, 0, HiddenKind.OnlyInNetworkTable, MissingLists(pid, primary, toolhelp, psapi)));
+        }
+
+        foreach (int pid in primary)
+        {
+            if (pid == 0) continue;
+            var missing = new List<EnumerationMethod>();
+            if (toolhelp is not null && !toolhelp.Contains(pid)) missing.Add(EnumerationMethod.Toolhelp);
+            if (psapi is not null && !psapi.Contains(pid)) missing.Add(EnumerationMethod.EnumProcesses);
+            if (missing.Count > 0)
+            {
+                long create = input.BruteForceAlive.TryGetValue(pid, out long c) ? c : 0;
+                candidates.Add((pid, create, HiddenKind.MissingFromSomeLists, missing.ToArray()));
             }
         }
 
-        foreach (int pid in _streaks.Keys.Where(p => !seenThisScan.Contains(p)).ToList())
-            _streaks.Remove(pid);
+        var findings = new List<HiddenProcessFinding>();
+        var seen = new HashSet<(int, long, HiddenKind)>();
+        foreach (var c in candidates.OrderBy(c => c.Pid))
+        {
+            var key = (c.Pid, c.Create, c.Kind);
+            if (!seen.Add(key)) continue;
+            int streak = _streaks.TryGetValue(key, out int s) ? s + 1 : 1;
+            _streaks[key] = streak;
+            if (streak >= RequiredConsecutiveScans)
+                findings.Add(new HiddenProcessFinding(c.Pid, c.Create, c.Kind, c.Missing, streak));
+        }
 
-        return findings;
+        foreach (var key in _streaks.Keys.Where(k => !seen.Contains(k)).ToList())
+            _streaks.Remove(key);
+
+        return new CrossViewResult(true, failed, findings);
+    }
+
+    private static EnumerationMethod[] MissingLists(int pid, IReadOnlySet<int> primary, IReadOnlySet<int>? toolhelp, IReadOnlySet<int>? psapi)
+    {
+        var list = new List<EnumerationMethod>();
+        if (!primary.Contains(pid)) list.Add(EnumerationMethod.NtQuerySystemInformation);
+        if (toolhelp is not null && !toolhelp.Contains(pid)) list.Add(EnumerationMethod.Toolhelp);
+        if (psapi is not null && !psapi.Contains(pid)) list.Add(EnumerationMethod.EnumProcesses);
+        return list.ToArray();
     }
 }

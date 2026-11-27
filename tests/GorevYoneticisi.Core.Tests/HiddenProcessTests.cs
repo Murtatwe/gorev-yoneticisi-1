@@ -4,92 +4,136 @@ namespace GorevYoneticisi.Core.Tests;
 
 public class HiddenProcessTests
 {
-    private static Dictionary<EnumerationMethod, IReadOnlySet<int>> Views(
-        int[] nt, int[] toolhelp, int[] psapi, int[] brute, int[]? net = null) => new()
+    private static CrossViewInput Input(
+        int[]? nt, int[]? toolhelp = null, int[]? psapi = null,
+        (int Pid, long Create)[]? brute = null, int[]? net = null)
     {
-        [EnumerationMethod.NtQuerySystemInformation] = nt.ToHashSet(),
-        [EnumerationMethod.Toolhelp] = toolhelp.ToHashSet(),
-        [EnumerationMethod.EnumProcesses] = psapi.ToHashSet(),
-        [EnumerationMethod.PidBruteForce] = brute.ToHashSet(),
-        [EnumerationMethod.NetworkTable] = (net ?? Array.Empty<int>()).ToHashSet(),
-    };
+        toolhelp ??= nt;
+        psapi ??= nt;
+        return new CrossViewInput(
+            Primary: nt?.ToHashSet(),
+            Toolhelp: toolhelp?.ToHashSet(),
+            EnumProcesses: psapi?.ToHashSet(),
+            BruteForceAlive: (brute ?? (nt ?? Array.Empty<int>()).Select(p => (p, 1L)).ToArray()).ToDictionary(x => x.Item1, x => x.Item2),
+            NetworkOwners: (net ?? Array.Empty<int>()).ToHashSet());
+    }
+
+    private static readonly int[] Base = Enumerable.Range(1, 50).Select(i => i * 4).ToArray();
 
     [Fact]
     public void ConsistentViews_ProduceNoFindings()
     {
-        var detector = new HiddenProcessDetector();
-        var v = Views(new[] { 4, 100, 200 }, new[] { 4, 100, 200 }, new[] { 4, 100, 200 }, new[] { 4, 100, 200 });
-        Assert.Empty(detector.Analyze(v));
-        Assert.Empty(detector.Analyze(v));
+        var d = new HiddenProcessDetector();
+        Assert.Empty(d.Analyze(Input(Base)).Findings);
+        Assert.Empty(d.Analyze(Input(Base)).Findings);
     }
 
     [Fact]
-    public void ProcessMissingFromPrimaryList_IsReportedOnlyAfterTwoConsecutiveScans()
+    public void LiveProcessMissingFromAllLists_IsHighAfterTwoScans()
     {
-        var detector = new HiddenProcessDetector();
-        var v = Views(new[] { 4, 100 }, new[] { 4, 100 }, new[] { 4, 100 }, new[] { 4, 100, 666 });
+        var d = new HiddenProcessDetector();
+        var brute = Base.Select(p => (p, 1L)).Append((666, 77L)).ToArray();
+        var input = Input(Base, brute: brute);
 
-        Assert.Empty(detector.Analyze(v)); // first sighting could be a race (process just started)
-
-        var finding = Assert.Single(detector.Analyze(v));
-        Assert.Equal(666, finding.Pid);
-        Assert.Contains(EnumerationMethod.PidBruteForce, finding.SeenBy);
-        Assert.Contains(EnumerationMethod.NtQuerySystemInformation, finding.MissingFrom);
-        Assert.Contains(EnumerationMethod.Toolhelp, finding.MissingFrom);
+        Assert.Empty(d.Analyze(input).Findings);
+        var f = Assert.Single(d.Analyze(input).Findings);
+        Assert.Equal(666, f.Pid);
+        Assert.Equal(77L, f.CreateTime);
+        Assert.Equal(HiddenKind.HiddenFromAllLists, f.Kind);
+        Assert.Equal(RiskLevel.High, f.Severity);
     }
 
     [Fact]
-    public void TransientDiscrepancy_IsForgottenWhenItDisappears()
+    public void TransientDiscrepancy_IsForgotten()
     {
-        var detector = new HiddenProcessDetector();
-        var bad = Views(new[] { 4 }, new[] { 4 }, new[] { 4 }, new[] { 4, 666 });
-        var good = Views(new[] { 4 }, new[] { 4 }, new[] { 4 }, new[] { 4 });
-
-        Assert.Empty(detector.Analyze(bad));
-        Assert.Empty(detector.Analyze(good));
-        Assert.Empty(detector.Analyze(bad)); // counter was reset
+        var d = new HiddenProcessDetector();
+        var bad = Input(Base, brute: Base.Select(p => (p, 1L)).Append((666, 1L)).ToArray());
+        Assert.Empty(d.Analyze(bad).Findings);
+        Assert.Empty(d.Analyze(Input(Base)).Findings);
+        Assert.Empty(d.Analyze(bad).Findings);
     }
 
     [Fact]
-    public void NetworkOwnerNotInProcessList_IsHidden()
+    public void ReusedPidWithDifferentCreateTime_ResetsStreak()
     {
-        var detector = new HiddenProcessDetector();
-        var v = Views(new[] { 4, 100 }, new[] { 4, 100 }, new[] { 4, 100 }, new[] { 4, 100 }, net: new[] { 100, 777 });
-        detector.Analyze(v);
-        var f = Assert.Single(detector.Analyze(v));
+        var d = new HiddenProcessDetector();
+        Assert.Empty(d.Analyze(Input(Base, brute: Base.Select(p => (p, 1L)).Append((666, 1L)).ToArray())).Findings);
+        Assert.Empty(d.Analyze(Input(Base, brute: Base.Select(p => (p, 1L)).Append((666, 2L)).ToArray())).Findings);
+    }
+
+    [Fact]
+    public void NetworkOnlyOwner_IsLowAndWordedAsStaleRecord()
+    {
+        var d = new HiddenProcessDetector();
+        var input = Input(Base, net: new[] { 4, 777 });
+        d.Analyze(input);
+        var f = Assert.Single(d.Analyze(input).Findings);
         Assert.Equal(777, f.Pid);
-        Assert.Equal(new[] { EnumerationMethod.NetworkTable }, f.SeenBy);
+        Assert.Equal(HiddenKind.OnlyInNetworkTable, f.Kind);
+        Assert.Equal(RiskLevel.Low, f.Severity);
     }
 
     [Fact]
-    public void IdlePidZero_IsIgnored()
+    public void MissingOnlyFromSecondaryList_IsLow()
     {
-        var detector = new HiddenProcessDetector();
-        var v = Views(new[] { 4 }, new[] { 0, 4 }, new[] { 0, 4 }, new[] { 4 }, net: new[] { 0 });
-        detector.Analyze(v);
-        Assert.Empty(detector.Analyze(v));
-    }
-
-    [Fact]
-    public void ProcessMissingOnlyFromSecondaryList_IsReportedAsMinorInconsistency()
-    {
-        // Present in NtQuery and brute force, missing from Toolhelp only: a user-mode hook on one API.
-        var detector = new HiddenProcessDetector();
-        var v = Views(new[] { 4, 300 }, new[] { 4 }, new[] { 4, 300 }, new[] { 4, 300 });
-        detector.Analyze(v);
-        var f = Assert.Single(detector.Analyze(v));
-        Assert.Equal(300, f.Pid);
-        Assert.False(f.MissingFromPrimary);
-        Assert.Equal(new[] { EnumerationMethod.Toolhelp }, f.MissingFrom);
+        var d = new HiddenProcessDetector();
+        var input = Input(Base, toolhelp: Base.Where(p => p != 40).ToArray());
+        d.Analyze(input);
+        var f = Assert.Single(d.Analyze(input).Findings);
+        Assert.Equal(40, f.Pid);
+        Assert.Equal(HiddenKind.MissingFromSomeLists, f.Kind);
+        Assert.Equal(RiskLevel.Low, f.Severity);
     }
 
     [Fact]
     public void BruteForceNotSeeingAProcess_IsNotAFinding()
     {
-        // Protected processes can refuse OpenProcess even for admins; absence from brute force means nothing.
-        var detector = new HiddenProcessDetector();
-        var v = Views(new[] { 4, 500 }, new[] { 4, 500 }, new[] { 4, 500 }, new[] { 4 });
-        detector.Analyze(v);
-        Assert.Empty(detector.Analyze(v));
+        var d = new HiddenProcessDetector();
+        var input = Input(Base, brute: Base.Skip(5).Select(p => (p, 1L)).ToArray());
+        d.Analyze(input);
+        Assert.Empty(d.Analyze(input).Findings);
+    }
+
+    [Fact]
+    public void FailedPrimaryView_IsReportedAsFailure_NotAsMassAlarm()
+    {
+        var d = new HiddenProcessDetector();
+        var input = Input(nt: null, toolhelp: Base, psapi: Base, brute: Base.Select(p => (p, 1L)).ToArray());
+        d.Analyze(input);
+        var r = d.Analyze(input);
+        Assert.False(r.PrimaryAvailable);
+        Assert.Empty(r.Findings);
+    }
+
+    [Fact]
+    public void EmptyOrTruncatedPrimaryView_IsTreatedAsFailure()
+    {
+        var d = new HiddenProcessDetector();
+        var input = Input(nt: Base.Take(3).ToArray(), toolhelp: Base, psapi: Base, brute: Base.Select(p => (p, 1L)).ToArray());
+        d.Analyze(input);
+        var r = d.Analyze(input);
+        Assert.False(r.PrimaryAvailable);
+        Assert.Empty(r.Findings);
+    }
+
+    [Fact]
+    public void BrokenSecondaryView_IsIgnoredAndReported()
+    {
+        var d = new HiddenProcessDetector();
+        var input = Input(Base, toolhelp: Array.Empty<int>());
+        d.Analyze(input);
+        var r = d.Analyze(input);
+        Assert.True(r.PrimaryAvailable);
+        Assert.Empty(r.Findings);
+        Assert.Contains(EnumerationMethod.Toolhelp, r.FailedMethods);
+    }
+
+    [Fact]
+    public void IdlePidZero_IsIgnored()
+    {
+        var d = new HiddenProcessDetector();
+        var input = Input(Base, toolhelp: Base.Append(0).ToArray(), net: new[] { 0 });
+        d.Analyze(input);
+        Assert.Empty(d.Analyze(input).Findings);
     }
 }

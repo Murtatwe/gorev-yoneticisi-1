@@ -11,10 +11,11 @@ public static class Format
 
     public static string Bytes(double bytes)
     {
-        if (double.IsNaN(bytes) || bytes <= 0) return "0 B";
-        if (bytes < 1024) return $"{Math.Round(bytes):0} B";
-        int unit = 0;
-        while (bytes >= 1024 && unit < Units.Length - 1)
+        if (!(bytes > 0)) return "0 B";
+        if (Math.Round(bytes) < 1024) return $"{Math.Round(bytes):0} B";
+        bytes /= 1024;
+        int unit = 1;
+        while (unit < Units.Length - 1 && Math.Round(bytes, 1, MidpointRounding.AwayFromZero) >= 1024)
         {
             bytes /= 1024;
             unit++;
@@ -26,7 +27,7 @@ public static class Format
 
     public static string Percent(double value)
     {
-        if (double.IsNaN(value) || value < 0) value = 0;
+        if (!(value > 0)) value = 0;
         return "%" + Number(value, 1, keepDecimals: false);
     }
 
@@ -42,7 +43,8 @@ public static class Format
     /// <summary>Formats with a decimal comma. When <paramref name="keepDecimals"/> is false, ".0" is dropped.</summary>
     public static string Number(double value, int decimals, bool keepDecimals)
     {
-        double rounded = Math.Round(value, decimals, MidpointRounding.AwayFromZero);
+        double rounded = Math.Round(value, decimals, MidpointRounding.AwayFromZero) + 0.0;
+        if (rounded == 0) rounded = 0; // avoid "-0"
         string pattern = keepDecimals || rounded != Math.Floor(rounded)
             ? "0." + new string('0', decimals)
             : "0";
