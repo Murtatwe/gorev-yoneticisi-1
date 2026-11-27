@@ -35,6 +35,23 @@ jobs:
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
           -p:EnableCompressionInSingleFile=true -o publish
 
+      - name: Duman testi (gerçek uygulamayı Windows'ta açıp her sayfayı gezer)
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          $out = Join-Path $PWD 'smoke'
+          $p = Start-Process -FilePath 'publish\GorevYoneticisi.exe' -ArgumentList '--smoke-test', "`"$out`"" -PassThru -Wait
+          Write-Host "Çıkış kodu: $($p.ExitCode)"
+          if (Test-Path "$out\rapor.json") { Get-Content "$out\rapor.json" -Encoding utf8 | Select-Object -First 120 }
+          exit $p.ExitCode
+
+      - name: Duman testi sonuçlarını sakla
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: duman-testi
+          path: smoke
+
       - uses: actions/upload-artifact@v4
         with:
           name: GorevYoneticisi

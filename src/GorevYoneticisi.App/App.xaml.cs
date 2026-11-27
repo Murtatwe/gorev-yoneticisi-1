@@ -19,6 +19,12 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += (_, args) => Log(args.ExceptionObject as Exception, "Arka plan hatası");
         TaskScheduler.UnobservedTaskException += (_, args) => { Log(args.Exception, "Görev hatası"); args.SetObserved(); };
 
+        bool smoke = e.Args.Length > 0 && e.Args[0] == "--smoke-test";
+        if (smoke)
+        {
+            try { File.Delete(LogPath); } catch { }
+        }
+
         var settings = AppSettings.Load();
         settings.ApplyTheme();
 
@@ -33,6 +39,11 @@ public partial class App : Application
         catch (Exception ex)
         {
             Log(ex, "Başlatma hatası");
+            if (smoke)
+            {
+                Shutdown(3);
+                return;
+            }
             MessageBox.Show($"Görev Yöneticisi başlatılamadı:\n\n{ex.Message}\n\nAyrıntılar: {LogPath}",
                 "Görev Yöneticisi", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
@@ -44,6 +55,8 @@ public partial class App : Application
         MainWindow = window;
         window.Show();
         _monitor.Start();
+
+        if (smoke) SmokeTest.Run(window, vm, _monitor, e.Args.Length > 1 ? e.Args[1] : Path.Combine(DataFolder, "duman-testi"));
     }
 
     protected override void OnExit(ExitEventArgs e)
