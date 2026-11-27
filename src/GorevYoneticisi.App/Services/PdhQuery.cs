@@ -40,20 +40,22 @@ internal sealed class PdhQuery : IDisposable
         return value.DoubleValue;
     }
 
-    public unsafe List<(string Instance, double Value)> GetArray(string key)
+    /// <returns>The instances, or null when the call failed (e.g. instances changed mid-read); callers keep old values then.</returns>
+    public unsafe List<(string Instance, double Value)>? GetArray(string key)
     {
         var result = new List<(string, double)>();
-        if (!_counters.TryGetValue(key, out var counter)) return result;
+        if (!_counters.TryGetValue(key, out var counter)) return null;
 
         int size = 0;
         uint status = Pdh.PdhGetFormattedCounterArrayW(counter, Pdh.PDH_FMT_DOUBLE | Pdh.PDH_FMT_NOCAP100, ref size, out _, IntPtr.Zero);
-        if (status != Pdh.PDH_MORE_DATA || size <= 0) return result;
+        if (status == Pdh.ERROR_SUCCESS) return result; // no instances
+        if (status != Pdh.PDH_MORE_DATA || size <= 0) return null;
 
         IntPtr buffer = Marshal.AllocHGlobal(size);
         try
         {
             status = Pdh.PdhGetFormattedCounterArrayW(counter, Pdh.PDH_FMT_DOUBLE | Pdh.PDH_FMT_NOCAP100, ref size, out int count, buffer);
-            if (status != Pdh.ERROR_SUCCESS) return result;
+            if (status != Pdh.ERROR_SUCCESS) return null;
             var items = (Pdh.PDH_FMT_COUNTERVALUE_ITEM_W*)buffer;
             for (int i = 0; i < count; i++)
             {

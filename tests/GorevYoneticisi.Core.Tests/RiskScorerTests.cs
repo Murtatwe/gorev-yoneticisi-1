@@ -205,6 +205,14 @@ public class RiskScorerTests
     }
 
     [Fact]
+    public void ExpiredSignature_IsOnlyLow()
+    {
+        var r = _scorer.Assess(Input("oldtool.exe", @"C:\Program Files\Old\oldtool.exe", SignatureStatus.Expired));
+        Assert.Equal(RiskLevel.Low, r.Level);
+        Assert.DoesNotContain(r.Reasons, x => x.Contains("güvenmiyor"));
+    }
+
+    [Fact]
     public void InvalidSignature_IsHigh()
     {
         Assert.Equal(RiskLevel.High, Level(Input("app.exe", @"C:\Program Files\App\app.exe", SignatureStatus.Invalid)));

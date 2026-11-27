@@ -140,11 +140,11 @@ public sealed class StartupViewModel : ObservableObject
         foreach (var row in Rows)
         {
             var path = row.Entry.TargetPath;
-            var sig = _monitor.GetSignature(path);
-            row.Signature = path is null ? "" : sig.Display;
+            var sig = _monitor.GetSignature(path, highPriority: false);
+            row.Signature = path is null || !System.IO.Path.IsPathFullyQualified(path) ? "" : sig.Display;
             row.IsMicrosoft = sig.Status == SignatureStatus.Signed && (sig.Signer?.Contains("Microsoft", StringComparison.OrdinalIgnoreCase) ?? false);
             string name = path is null ? row.Name : System.IO.Path.GetFileName(path);
-            var risk = _monitor.AssessFile(name, path, row.Entry.ExtraScore, row.Entry.ExtraReasons);
+            var risk = _monitor.AssessStartupFile(name, path, row.Entry.ExtraScore, row.Entry.ExtraReasons);
             row.Risk = risk.Level;
             row.RiskScore = risk.Score;
             if (!row.Reasons.SequenceEqual(risk.Reasons)) row.Reasons = risk.Reasons;

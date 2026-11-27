@@ -51,9 +51,12 @@ public sealed class MonitorService : IDisposable
     private readonly SemaphoreSlim _scanLock = new(1, 1);
     private readonly CancellationTokenSource _cts = new();
     private readonly Stopwatch _clock = Stopwatch.StartNew();
+    private readonly Dictionary<(int Pid, long Create), (SignatureStatus Sig, FileState File, RiskLevel Hidden, RiskAssessment Risk)> _riskCache = new();
     private Thread? _thread;
+    private Task? _scanTask;
     private int _tick;
     private DateTime _lastScanStarted = DateTime.MinValue;
+    private HashSet<int>? _lastPrimaryPids;
 
     public MonitorService()
     {
@@ -66,7 +69,10 @@ public sealed class MonitorService : IDisposable
     public HardwareInfo Hardware { get; }
     public bool DebugPrivilege { get; }
     public TimeSpan Interval { get; set; } = TimeSpan.FromSeconds(1);
-    public TimeSpan SecurityInterval { get; set; } = TimeSpan.FromSeconds(10);
+    public TimeSpan SecurityInterval { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>While the Security page is open, background scans run at least every 10 seconds.</summary>
+    public bool FastSecurityScans { get; set; }
     public SecurityReport? LastSecurity { get; private set; }
     public string? LastError { get; private set; }
 
@@ -77,7 +83,7 @@ public sealed class MonitorService : IDisposable
     public void Start()
     {
         if (_thread is not null) return;
-        _thread = new Thread(Loop) { IsBackground = true, Name = "İzleme", Priority = ThreadPriority.AboveNormal };
+        _thread = new Thread(Loop) { IsBackground = true, Name = "İzleme", Priority = ThreadPriority.Normal };
         _thread.Start();
     }
 
@@ -98,10 +104,11 @@ public sealed class MonitorService : IDisposable
                 LastError = ex.Message;
             }
 
-            if (DateTime.UtcNow - _lastScanStarted > SecurityInterval && _scanLock.CurrentCount > 0)
+            var scanEvery = FastSecurityScans && SecurityInterval > TimeSpan.FromSeconds(10) ? TimeSpan.FromSeconds(10) : SecurityInterval;
+            if (DateTime.UtcNow - _lastScanStarted > scanEvery && _scanLock.CurrentCount > 0)
             {
                 _lastScanStarted = DateTime.UtcNow;
-                _ = Task.Run(() => RunSecurityScanAsync(token));
+                _scanTask = RunSecurityScanAsync(token);
             }
 
             var wait = Interval - (_clock.Elapsed - started);
@@ -118,20 +125,28 @@ public sealed class MonitorService : IDisposable
         var gpu = _metrics.GpuPerProcess;
         var gpuMem = _metrics.GpuMemoryPerProcess;
 
+        _lastPrimaryPids = raw.Select(r => r.Pid).ToHashSet();
+
         var hidden = new Dictionary<int, HiddenProcessView>();
         if (LastSecurity is { } sec)
             foreach (var item in sec.Items) hidden[item.Finding.Pid] = item;
 
+        double scale = _metrics.CpuScale;
         var list = new List<ProcessInfo>(rates.Count + hidden.Count);
         foreach (var m in rates)
         {
             var s = m.Sample;
             string? path = _details.GetPath(s.Pid, s.CreateTime);
-            hidden.TryGetValue(s.Pid, out var h);
-            var finding = h?.Finding;
-            list.Add(Build(s.Pid, s.ParentPid, s.Name, path, s.CreateTime, m.CpuPercent, s.PrivateWorkingSet, s.WorkingSet,
+            HiddenProcessFinding? finding = null;
+            if (hidden.Remove(s.Pid, out var h))
+            {
+                // A finding belongs to one specific process (PID + start time). A process that is in the normal
+                // list is, by definition, not hidden from it any more; only the weaker findings still apply.
+                bool sameProcess = h.Finding.CreateTime == 0 || h.Finding.CreateTime == s.CreateTime;
+                if (sameProcess && h.Finding.Kind != HiddenKind.HiddenFromAllLists) finding = h.Finding;
+            }
+            list.Add(Build(s.Pid, s.ParentPid, s.Name, path, s.CreateTime, CpuMath.Clamp(m.CpuPercent * scale), s.PrivateWorkingSet, s.WorkingSet,
                 gpu.GetValueOrDefault(s.Pid), gpuMem.GetValueOrDefault(s.Pid), m.DiskBytesPerSecond, s.ThreadCount, s.HandleCount, finding));
-            hidden.Remove(s.Pid);
         }
 
         // Processes found only by the security scan (hidden from the normal list) are added so they are visible.
@@ -140,7 +155,12 @@ public sealed class MonitorService : IDisposable
             list.Add(Build(h.Finding.Pid, 0, h.Name, h.Path, h.Finding.CreateTime, 0, 0, 0, 0, 0, 0, 0, 0, h.Finding));
         }
 
-        if (++_tick % 30 == 0) _details.Prune(raw.Select(r => (r.Pid, r.CreateTime)));
+        if (++_tick % 30 == 0)
+        {
+            var alive = raw.Select(r => (r.Pid, r.CreateTime)).ToHashSet();
+            _details.Prune(alive);
+            foreach (var key in _riskCache.Keys.Where(k => !alive.Contains(k)).ToList()) _riskCache.Remove(key);
+        }
         return new MonitorSnapshot(DateTime.Now, totals, list);
     }
 
@@ -148,14 +168,25 @@ public sealed class MonitorService : IDisposable
         double gpu, long gpuMem, double io, int threads, int handles, HiddenProcessFinding? hidden)
     {
         var sig = _signatures.Get(path);
-        var risk = _scorer.Assess(new ProcessSecurityInput(
-            name, path, sig.Status, sig.Signer,
-            hidden?.Severity ?? RiskLevel.None,
-            _files.Get(path), pid, ppid));
+        var file = _files.Get(path);
+        var hiddenLevel = hidden?.Severity ?? RiskLevel.None;
+        // Scoring is pure but not free; only recompute when one of its inputs changed.
+        if (!_riskCache.TryGetValue((pid, create), out var cached) ||
+            cached.Sig != sig.Status || cached.File != file || cached.Hidden != hiddenLevel)
+        {
+            var assessed = _scorer.Assess(new ProcessSecurityInput(name, path, sig.Status, sig.Signer, hiddenLevel, file, pid, ppid));
+            cached = (sig.Status, file, hiddenLevel, assessed);
+            _riskCache[(pid, create)] = cached;
+        }
+        var risk = cached.Risk;
         return new ProcessInfo(pid, ppid, name, path, create, cpu, privateWs, ws, gpu, gpuMem, io, threads, handles, sig, risk, hidden);
     }
 
-    public async Task<SecurityReport?> RunSecurityScanAsync(CancellationToken cancel = default)
+    /// <summary>Runs a cross-view scan on a background thread. Safe to call from the UI thread.</summary>
+    public Task<SecurityReport?> RunSecurityScanAsync(CancellationToken cancel = default) =>
+        Task.Run(() => ScanCoreAsync(cancel), cancel);
+
+    private async Task<SecurityReport?> ScanCoreAsync(CancellationToken cancel)
     {
         if (!await _scanLock.WaitAsync(0, cancel).ConfigureAwait(false))
         {
@@ -169,9 +200,11 @@ public sealed class MonitorService : IDisposable
             var sw = Stopwatch.StartNew();
             // Order matters: brute force first, primary list last, so processes that start mid-scan
             // land in the primary list (no finding) rather than only in the brute-force view.
-            var primaryGuess = SafeList(() => ProcessEnumeration.QueryPrimary().Select(p => p.Pid).ToHashSet());
+            var primaryGuess = _lastPrimaryPids ?? SafeList(() => ProcessEnumeration.QueryPrimary().Select(p => p.Pid).ToHashSet());
             int maxPid = Math.Clamp((primaryGuess?.DefaultIfEmpty(0).Max() ?? 0) + 16384, 65536, 1 << 22);
-            var brute = ProcessEnumeration.BruteForcePids(maxPid, cancel);
+            // Processes already in the normal list are not opened at all: the detector only cares about
+            // live processes missing from it. This also keeps audit tools (Sysmon, EDR) from logging every process.
+            var brute = ProcessEnumeration.BruteForcePids(maxPid, primaryGuess, cancel);
             var net = SafeList(() => NetworkConnections.Read().Select(c => c.Pid).ToHashSet()) ?? new HashSet<int>();
             var primary = SafeList(() => ProcessEnumeration.QueryPrimary().Select(p => p.Pid).ToHashSet());
             var toolhelp = SafeList(ProcessEnumeration.ToolhelpPids);
@@ -210,23 +243,36 @@ public sealed class MonitorService : IDisposable
 
     public static string? GetCommandLine(int pid) => ProcessDetails.QueryCommandLine(pid);
 
-    public SignatureInfo GetSignature(string? path) => _signatures.Get(path);
+    public SignatureInfo GetSignature(string? path, bool highPriority = true) => _signatures.Get(path, highPriority);
 
-    public RiskAssessment AssessFile(string name, string? path, int extraScore, IEnumerable<string> extraReasons)
+    /// <summary>Risk of a startup entry (nothing is running, so a missing file means a leftover entry, not a deleted program).</summary>
+    public RiskAssessment AssessStartupFile(string name, string? path, int extraScore, IEnumerable<string> extraReasons)
     {
-        var sig = _signatures.Get(path);
-        var r = _scorer.Assess(new ProcessSecurityInput(name, path, sig.Status, sig.Signer, RiskLevel.None, _files.Get(path)));
-        if (extraScore == 0) return r;
-        int score = r.Score + extraScore;
-        return new RiskAssessment(RiskScorer.LevelFor(score), score, extraReasons.Concat(r.Reasons).ToList());
+        var reasons = extraReasons.ToList();
+        int score = extraScore;
+        if (path is not null && Path.IsPathFullyQualified(path))
+        {
+            var sig = _signatures.Get(path, highPriority: false);
+            var r = _scorer.Assess(new ProcessSecurityInput(name, path, sig.Status, sig.Signer, RiskLevel.None, FileState.Unknown));
+            score += r.Score;
+            reasons.AddRange(r.Reasons);
+            if (_files.Get(path) == FileState.Missing)
+            {
+                score += 5;
+                reasons.Add("Kayıt duruyor ama dosyası yok. Genellikle kaldırılmış bir programdan kalır.");
+            }
+        }
+        return new RiskAssessment(RiskScorer.LevelFor(score), score, reasons);
     }
 
     public void Dispose()
     {
         _cts.Cancel();
-        _thread?.Join(TimeSpan.FromSeconds(2));
+        bool stopped = _thread?.Join(TimeSpan.FromSeconds(10)) ?? true;
+        try { _scanTask?.Wait(TimeSpan.FromSeconds(5)); } catch { /* cancelled */ }
         _signatures.Dispose();
-        _metrics.Dispose();
+        // Closing PDH queries while the collector thread is still inside PDH could crash natively.
+        if (stopped) _metrics.Dispose();
     }
 }
 

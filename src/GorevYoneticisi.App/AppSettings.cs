@@ -6,7 +6,7 @@ namespace GorevYoneticisi.App;
 public sealed class AppSettings
 {
     public int RefreshMilliseconds { get; set; } = 1000;
-    public int SecurityScanSeconds { get; set; } = 10;
+    public int SecurityScanSeconds { get; set; } = 30;
     /// <summary>"Koyu", "Açık" or "Sistem".</summary>
     public string Theme { get; set; } = "Koyu";
     public bool HideMicrosoftStartupItems { get; set; } = true;

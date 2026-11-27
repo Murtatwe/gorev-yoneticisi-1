@@ -56,7 +56,7 @@ public sealed class SettingsViewModel : ObservableObject
 
     public Choice<int> Scan
     {
-        get => ScanOptions.FirstOrDefault(o => o.Value == _settings.SecurityScanSeconds) ?? ScanOptions[0];
+        get => ScanOptions.FirstOrDefault(o => o.Value == _settings.SecurityScanSeconds) ?? ScanOptions[1];
         set
         {
             if (value is null) return;

@@ -12,6 +12,8 @@ public enum SignatureStatus
     Invalid,
     /// <summary>Signature present but the certificate chain is not trusted (self-signed, revoked, ...).</summary>
     Untrusted,
+    /// <summary>Signed with a certificate that has expired and no timestamp. Common for old legitimate software.</summary>
+    Expired,
 }
 
 public enum RiskLevel { None = 0, Low = 1, Medium = 2, High = 3 }
@@ -170,6 +172,9 @@ public sealed partial class RiskScorer
                 break;
             case SignatureStatus.Untrusted:
                 Add(40, "İmza var ama Windows bu imzaya güvenmiyor (sertifika iptal edilmiş ya da kendinden imzalı olabilir).");
+                break;
+            case SignatureStatus.Expired:
+                Add(5, "Dijital imzanın süresi dolmuş. Eski programlarda olağandır.");
                 break;
             case SignatureStatus.Unsigned when !packaged:
                 Add(20, "Dosyanın dijital imzası yok. Tek başına tehlikeli değildir; birçok küçük program imzasızdır.");

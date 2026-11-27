@@ -107,12 +107,14 @@ internal static class ProcessEnumeration
     /// alive by someone's open handle ("zombies") are skipped, otherwise they would look hidden.
     /// </summary>
     /// <returns>PID mapped to creation time, for processes confirmed to be running.</returns>
-    public static Dictionary<int, long> BruteForcePids(int maxPid, CancellationToken cancel = default)
+    /// <param name="skip">PIDs not to open (already known from the normal process list).</param>
+    public static Dictionary<int, long> BruteForcePids(int maxPid, IReadOnlySet<int>? skip, CancellationToken cancel = default)
     {
         var set = new Dictionary<int, long>();
         for (int pid = 4; pid <= maxPid; pid += 4)
         {
             if ((pid & 0xFFF) == 0) cancel.ThrowIfCancellationRequested();
+            if (skip is not null && skip.Contains(pid)) continue;
 
             IntPtr h = Kernel32.OpenProcess(Kernel32.PROCESS_QUERY_LIMITED_INFORMATION | Kernel32.SYNCHRONIZE, false, pid);
             // Access denied means the PID exists but is protected; we cannot confirm it is still running,
@@ -122,7 +124,7 @@ internal static class ProcessEnumeration
             {
                 if (Kernel32.GetProcessId(h) != pid) continue;
                 if (Kernel32.WaitForSingleObject(h, 0) != Kernel32.WAIT_TIMEOUT) continue; // already exited
-                Kernel32.GetProcessTimes(h, out long created, out _, out _, out _);
+                if (!Kernel32.GetProcessTimes(h, out long created, out _, out _, out _)) created = 0;
                 set[pid] = created;
             }
             finally

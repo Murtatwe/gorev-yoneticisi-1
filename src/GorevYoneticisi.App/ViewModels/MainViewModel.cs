@@ -66,6 +66,7 @@ public sealed class MainViewModel : ObservableObject
             if (value is null || !SetProperty(ref _selected, value)) return;
             OnPropertyChanged(nameof(CurrentPage));
             Network.IsActive = value.Page == Network;
+            _monitor.FastSecurityScans = value.Page == Security;
             if (value.Page == Startup) Startup.EnsureLoaded();
         }
     }

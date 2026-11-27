@@ -9,6 +9,8 @@ namespace GorevYoneticisi.App.Services;
 internal sealed class ProcessDetails
 {
     private readonly Dictionary<(int Pid, long Create), string?> _paths = new();
+    private readonly Dictionary<(int Pid, long Create), long> _failedAt = new();
+    private static readonly long RetryTicks = TimeSpan.FromSeconds(10).Ticks;
     private Dictionary<string, string> _deviceMap = new(StringComparer.OrdinalIgnoreCase);
     private DateTime _deviceMapAge = DateTime.MinValue;
     private readonly string _windowsDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
@@ -20,11 +22,18 @@ internal sealed class ProcessDetails
         lock (_lock)
         {
             if (_paths.TryGetValue((pid, createTime), out var cached)) return cached;
+            // Failures (very young process, transient error) are retried, not cached forever.
+            if (_failedAt.TryGetValue((pid, createTime), out long at) && DateTime.UtcNow.Ticks - at < RetryTicks) return null;
         }
         string? path = QueryPath(pid);
         lock (_lock)
         {
-            _paths[(pid, createTime)] = path;
+            if (path is null) _failedAt[(pid, createTime)] = DateTime.UtcNow.Ticks;
+            else
+            {
+                _paths[(pid, createTime)] = path;
+                _failedAt.Remove((pid, createTime));
+            }
         }
         return path;
     }
@@ -36,6 +45,7 @@ internal sealed class ProcessDetails
         lock (_lock)
         {
             foreach (var key in _paths.Keys.Where(k => !keep.Contains(k)).ToList()) _paths.Remove(key);
+            foreach (var key in _failedAt.Keys.Where(k => !keep.Contains(k)).ToList()) _failedAt.Remove(key);
         }
     }
 
@@ -62,23 +72,32 @@ internal sealed class ProcessDetails
 
     private static unsafe string? QueryNtImagePath(int pid)
     {
-        const int maxBytes = 0x10000;
-        IntPtr text = Marshal.AllocHGlobal(maxBytes);
-        try
+        ushort bytes = 1024;
+        for (int attempt = 0; attempt < 2; attempt++)
         {
-            var info = new Ntdll.SYSTEM_PROCESS_ID_INFORMATION
+            IntPtr text = Marshal.AllocHGlobal(bytes);
+            try
             {
-                ProcessId = (IntPtr)pid,
-                ImageName = new Ntdll.UNICODE_STRING { Length = 0, MaximumLength = maxBytes - 2, Buffer = text },
-            };
-            uint status = Ntdll.NtQuerySystemInformation(Ntdll.SystemProcessIdInformation, (IntPtr)(&info), sizeof(Ntdll.SYSTEM_PROCESS_ID_INFORMATION), out _);
-            if (status != Ntdll.STATUS_SUCCESS || info.ImageName.Length == 0) return null;
-            return new string((char*)text, 0, info.ImageName.Length / 2);
+                var info = new Ntdll.SYSTEM_PROCESS_ID_INFORMATION
+                {
+                    ProcessId = (IntPtr)pid,
+                    ImageName = new Ntdll.UNICODE_STRING { Length = 0, MaximumLength = bytes, Buffer = text },
+                };
+                uint status = Ntdll.NtQuerySystemInformation(Ntdll.SystemProcessIdInformation, (IntPtr)(&info), sizeof(Ntdll.SYSTEM_PROCESS_ID_INFORMATION), out _);
+                if (status == Ntdll.STATUS_INFO_LENGTH_MISMATCH && info.ImageName.MaximumLength > bytes)
+                {
+                    bytes = info.ImageName.MaximumLength; // the kernel reports the size it needs
+                    continue;
+                }
+                if (status != Ntdll.STATUS_SUCCESS || info.ImageName.Length == 0) return null;
+                return new string((char*)text, 0, info.ImageName.Length / 2);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(text);
+            }
         }
-        finally
-        {
-            Marshal.FreeHGlobal(text);
-        }
+        return null;
     }
 
     public static unsafe string? QueryCommandLine(int pid)
