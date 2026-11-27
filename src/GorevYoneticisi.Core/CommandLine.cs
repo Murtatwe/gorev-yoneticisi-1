@@ -26,7 +26,7 @@ public static partial class CommandLine
 
         string? inner = host switch
         {
-            "rundll32" => FirstPathSkippingSwitches(rest, switchPrefix: null),
+            "rundll32" => FirstPathSkippingSwitches(rest, switchPrefix: "/"),
             "regsvr32" => FirstPathSkippingSwitches(rest, switchPrefix: "/"),
             "wscript" or "cscript" => FirstPathSkippingSwitches(rest, switchPrefix: "/"),
             "mshta" => FirstPathSkippingSwitches(rest, switchPrefix: "-"),

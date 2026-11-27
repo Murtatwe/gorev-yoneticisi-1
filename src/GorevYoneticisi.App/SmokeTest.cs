@@ -92,6 +92,9 @@ internal static class SmokeTest
             report["startupByCategory"] = vm.Startup.Rows.GroupBy(r => r.Category).ToDictionary(g => g.Key, g => g.Count());
             report["startupRisky"] = vm.Startup.Rows.Where(r => r.Risk >= Core.Security.RiskLevel.Medium)
                 .Select(r => new { r.Name, r.Category, r.Target, Level = r.Risk.ToString(), r.RiskScore, r.Reasons, r.Signature }).ToList();
+            report["startupLowSample"] = vm.Startup.Rows.Where(r => r.Risk == Core.Security.RiskLevel.Low).Take(12)
+                .Select(r => new { r.Name, r.Category, r.Target, r.Signature, r.Reasons }).ToList();
+            report["startupPendingSignatures"] = vm.Startup.Rows.Count(r => r.Signature == "…");
             report["networkRows"] = vm.Network.Rows.Count;
         }
         catch (Exception ex)

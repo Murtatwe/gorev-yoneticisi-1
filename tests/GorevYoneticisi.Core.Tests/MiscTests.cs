@@ -24,6 +24,7 @@ public class CommandLineTests
     [InlineData(@"rundll32.exe C:\Users\a\evil.dll,Start", @"C:\Users\a\evil.dll")]
     [InlineData(@"C:\Windows\System32\rundll32.exe ""C:\p q\lib.dll"",Entry", @"C:\p q\lib.dll")]
     [InlineData(@"rundll32 shell32.dll,Control_RunDLL", "shell32.dll")]
+    [InlineData(@"%windir%\system32\rundll32.exe /d acproxy.dll,PerformAutochkOperations", "acproxy.dll")]
     [InlineData(@"rundll32.exe C:\p q\lib.dll,Entry", @"C:\p q\lib.dll")]
     [InlineData(@"regsvr32 /s /i C:\x\y.dll", @"C:\x\y.dll")]
     [InlineData(@"powershell.exe -NoProfile -ExecutionPolicy Bypass -File ""C:\s\a.ps1""", @"C:\s\a.ps1")]
